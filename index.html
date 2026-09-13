@@ -1,0 +1,3126 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SML GAME — Футбольный симулятор</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0b1a12;
+    --bg-mid: #10321f;
+    --line-color: rgba(255,255,255,0.12);
+    --gold: #febe10;
+    --text: #eef5ef;
+    --text-dim: #a9c2ae;
+    --green-rating: #4ade80;
+    --gray-rating: #9ca3af;
+    --sub-color: #60a5fa;
+  }
+
+  html, body {
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 50% -10%, #1e5a37 0%, transparent 55%),
+      linear-gradient(180deg, var(--bg-mid) 0%, var(--bg-deep) 100%);
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(90deg, var(--line-color) 1px, transparent 1px),
+      linear-gradient(0deg, var(--line-color) 1px, transparent 1px);
+    background-size: 80px 80px;
+    opacity: 0.35;
+    z-index: 0;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    left: 50%; top: 0; bottom: 0;
+    width: 2px;
+    background: var(--line-color);
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .screen {
+    display: none;
+    position: relative;
+    z-index: 1;
+    padding: 24px 16px 40px;
+    min-height: 100vh;
+    animation: fadeIn .4s ease;
+  }
+
+  .screen.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .title-main {
+    font-size: clamp(2.4rem, 8vw, 4.5rem);
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-align: center;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ffffff 0%, #7dd3a1 60%, #3a8b5f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 4px 30px rgba(125,211,161,0.35);
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--text-dim);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    font-size: .85rem;
+    margin-bottom: 40px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 26px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .25s ease, background .25s;
+    background: linear-gradient(180deg, #2b7a4b 0%, #1d5a37 100%);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    text-transform: uppercase;
+  }
+
+  .btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(74,222,128,0.35), 0 0 0 2px rgba(74,222,128,0.4) inset;
+  }
+
+  .btn:active:not(:disabled) { transform: translateY(0); }
+
+  .btn.secondary {
+    background: transparent;
+    border: 2px solid rgba(255,255,255,0.25);
+    color: var(--text);
+  }
+
+  .btn.secondary:hover:not(:disabled) {
+    border-color: rgba(74,222,128,0.6);
+    box-shadow: 0 0 20px rgba(74,222,128,0.25);
+  }
+
+  .btn:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+    transform: none !important;
+  }
+
+  /* ===================== ВЫБОР КОМАНДЫ ===================== */
+  .team-select {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .team-card {
+    position: relative;
+    padding: 24px 20px;
+    border-radius: 18px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .25s ease, box-shadow .3s ease;
+    border: 2px solid transparent;
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: left;
+  }
+
+  .team-card:hover { transform: translateY(-6px) scale(1.02); }
+
+  .team-card.barca { background: linear-gradient(135deg, #004d98 0%, #001d3d 55%, #a50044 100%); }
+  .team-card.barca:hover { box-shadow: 0 20px 50px rgba(165,0,68,0.55); }
+  .team-card.real { background: linear-gradient(135deg, #f5f5f5 0%, #cfcfcf 60%, #febe10 100%); color: #111; }
+  .team-card.real:hover { box-shadow: 0 20px 50px rgba(254,190,16,0.55); }
+  .team-card.city { background: linear-gradient(135deg, #6cabdd 0%, #1c2c5b 60%, #0e1a3a 100%); }
+  .team-card.city:hover { box-shadow: 0 20px 50px rgba(108,171,221,0.55); }
+  .team-card.united { background: linear-gradient(135deg, #da291c 0%, #7a1410 60%, #2b0b0a 100%); }
+  .team-card.united:hover { box-shadow: 0 20px 50px rgba(218,41,28,0.55); }
+  .team-card.villa { background: linear-gradient(135deg, #95bfe5 0%, #670e36 60%, #2b0718 100%); }
+  .team-card.villa:hover { box-shadow: 0 20px 50px rgba(103,14,54,0.55); }
+  .team-card.arsenal { background: linear-gradient(135deg, #ef0107 0%, #9c0006 60%, #1e1e1e 100%); }
+  .team-card.arsenal:hover { box-shadow: 0 20px 50px rgba(239,1,7,0.55); }
+  .team-card.bayern { background: linear-gradient(135deg, #dc052d 0%, #8b0019 60%, #0066b2 100%); }
+  .team-card.bayern:hover { box-shadow: 0 20px 50px rgba(220,5,45,0.55); }
+  .team-card.chelsea { background: linear-gradient(135deg, #034694 0%, #001e4d 60%, #6a7ab5 100%); }
+  .team-card.chelsea:hover { box-shadow: 0 20px 50px rgba(3,70,148,0.55); }
+  .team-card.psg { background: linear-gradient(135deg, #004170 0%, #001f3d 55%, #da291c 100%); }
+  .team-card.psg:hover { box-shadow: 0 20px 50px rgba(218,41,28,0.55); }
+  .team-card.inter { background: linear-gradient(135deg, #0068a8 0%, #001a3d 55%, #000000 100%); }
+  .team-card.inter:hover { box-shadow: 0 20px 50px rgba(0,104,168,0.55); }
+  .team-card.milan { background: linear-gradient(135deg, #fb090b 0%, #1a1a1a 55%, #000000 100%); }
+  .team-card.milan:hover { box-shadow: 0 20px 50px rgba(251,9,11,0.55); }
+  .team-card.liverpool { background: linear-gradient(135deg, #c8102e 0%, #7a0a1c 60%, #00b2a9 100%); }
+  .team-card.liverpool:hover { box-shadow: 0 20px 50px rgba(200,16,46,0.55); }
+  .team-card.atletico { background: linear-gradient(135deg, #cb3524 0%, #1a2144 60%, #0d1230 100%); }
+  .team-card.atletico:hover { box-shadow: 0 20px 50px rgba(203,53,36,0.55); }
+  .team-card.dortmund { background: linear-gradient(135deg, #fde100 0%, #d4b800 50%, #1a1a1a 100%); color: #111; }
+  .team-card.dortmund:hover { box-shadow: 0 20px 50px rgba(253,225,0,0.55); }
+
+  .team-card .club-badge { font-size: 2.8rem; font-weight: 900; letter-spacing: 3px; line-height: 1; }
+  .team-card .club-name { font-size: 1.3rem; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin-top: 6px; }
+  .team-card .club-tag { font-size: .75rem; opacity: .8; letter-spacing: 2px; text-transform: uppercase; }
+
+  /* ===================== МЕНЮ ===================== */
+  .menu-wrap { max-width: 720px; margin: 0 auto; text-align: center; }
+
+  .menu-badge {
+    width: 130px; height: 130px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.2rem; font-weight: 900; letter-spacing: 2px;
+    border: 4px solid rgba(255,255,255,0.35);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.35);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+
+  .menu-badge.barca { background: linear-gradient(135deg, #004d98, #a50044); color: #ffd700; }
+  .menu-badge.real { background: linear-gradient(135deg, #ffffff, #febe10); color: #111; text-shadow: none; }
+  .menu-badge.city { background: linear-gradient(135deg, #6cabdd, #1c2c5b); color: #fff; }
+  .menu-badge.united { background: linear-gradient(135deg, #da291c, #7a1410); color: #fff; }
+  .menu-badge.villa { background: linear-gradient(135deg, #95bfe5, #670e36); color: #fff; }
+  .menu-badge.arsenal { background: linear-gradient(135deg, #ef0107, #1e1e1e); color: #fff; }
+  .menu-badge.bayern { background: linear-gradient(135deg, #dc052d, #0066b2); color: #fff; }
+  .menu-badge.chelsea { background: linear-gradient(135deg, #034694, #6a7ab5); color: #fff; }
+  .menu-badge.psg { background: linear-gradient(135deg, #004170, #da291c); color: #fff; }
+  .menu-badge.inter { background: linear-gradient(135deg, #0068a8, #000); color: #fff; }
+  .menu-badge.milan { background: linear-gradient(135deg, #fb090b, #000); color: #fff; }
+  .menu-badge.liverpool { background: linear-gradient(135deg, #c8102e, #00b2a9); color: #fff; }
+  .menu-badge.atletico { background: linear-gradient(135deg, #cb3524, #1a2144); color: #fff; }
+  .menu-badge.dortmund { background: linear-gradient(135deg, #fde100, #1a1a1a); color: #111; }
+
+  .menu-club-name { font-size: 1.8rem; font-weight: 900; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 6px; }
+
+  .menu-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 32px;
+  }
+
+  @media (max-width: 560px) { .menu-grid { grid-template-columns: 1fr; } }
+
+  .menu-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    background: linear-gradient(180deg, rgba(43,122,75,0.9) 0%, rgba(29,90,55,0.9) 100%);
+    border: 2px solid rgba(74,222,128,0.35);
+    border-radius: 16px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .2s ease, box-shadow .25s ease, border-color .25s;
+    color: #fff;
+    text-transform: uppercase;
+    font-weight: 900;
+    letter-spacing: 1.5px;
+    font-size: 1rem;
+    padding: 0;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    min-height: 170px;
+  }
+
+  .menu-btn:hover {
+    transform: translateY(-4px);
+    border-color: rgba(74,222,128,0.9);
+    box-shadow: 0 12px 32px rgba(74,222,128,0.4), 0 0 0 2px rgba(74,222,128,0.35) inset;
+  }
+
+  .menu-btn:active { transform: translateY(0); }
+
+  .menu-btn .menu-img {
+    width: 100%; height: 110px;
+    object-fit: cover;
+    display: block;
+    background: rgba(0,0,0,0.3);
+  }
+
+  .menu-btn .menu-label {
+    padding: 12px 10px;
+    text-align: center;
+    background: rgba(0,0,0,0.4);
+    font-size: .95rem;
+  }
+
+  .menu-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 32px; }
+
+  /* ===================== СОСТАВ ===================== */
+  .squad-screen-inner { max-width: 1100px; margin: 0 auto; }
+
+  .squad-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap; gap: 12px;
+  }
+
+  .squad-header h2 { font-size: 1.4rem; letter-spacing: 2px; text-transform: uppercase; }
+
+  .squad-columns {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 720px) { .squad-columns { grid-template-columns: 1fr; } }
+
+  .squad-column-title {
+    font-size: .9rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding-bottom: 8px;
+  }
+
+  .squad-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .player-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    transition: all .2s ease;
+    user-select: none;
+  }
+
+  .player-card:hover {
+    background: rgba(74,222,128,0.08);
+    border-color: rgba(74,222,128,0.3);
+    transform: translateX(4px);
+  }
+
+  .player-card.selected {
+    background: rgba(74,222,128,0.2);
+    border-color: var(--green-rating);
+    box-shadow: 0 0 0 2px rgba(74,222,128,0.35), 0 0 20px rgba(74,222,128,0.25);
+    transform: translateX(6px);
+  }
+
+  .player-pos {
+    min-width: 48px;
+    font-weight: 900;
+    font-size: .8rem;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.35);
+    text-align: center;
+    color: #cde8d3;
+  }
+
+  .player-name { flex: 1; font-weight: 600; font-size: .95rem; }
+
+  .player-rating {
+    font-weight: 900;
+    font-size: 1.05rem;
+    min-width: 40px;
+    text-align: center;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.35);
+  }
+
+  .rating-gold  { color: var(--gold); text-shadow: 0 0 12px rgba(254,190,16,0.6); }
+  .rating-green { color: var(--green-rating); }
+  .rating-gray  { color: var(--gray-rating); }
+
+  .squad-hint {
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.25);
+    font-size: .85rem;
+    color: var(--text-dim);
+    border-left: 3px solid var(--green-rating);
+  }
+
+  /* ===================== МАТЧ ===================== */
+  .match-screen-inner { max-width: 1000px; margin: 0 auto; }
+
+  .scoreboard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.3));
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 18px 26px;
+    margin-bottom: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+
+  .score-team {
+    font-weight: 900;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    flex: 1;
+    text-align: center;
+  }
+
+  .score-team.home { text-align: right; }
+  .score-team.away { text-align: left; }
+
+  .score-numbers {
+    font-size: 2.6rem;
+    font-weight: 900;
+    letter-spacing: 4px;
+    padding: 0 16px;
+    color: #fff;
+    text-shadow: 0 0 24px rgba(74,222,128,0.5);
+    white-space: nowrap;
+  }
+
+  .match-timer {
+    text-align: center;
+    font-weight: 900;
+    font-size: 1.3rem;
+    letter-spacing: 3px;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  .match-info {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    font-size: .85rem;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .match-info span b { color: var(--gold); }
+
+  .match-body {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 720px) { .match-body { grid-template-columns: 1fr; } }
+
+  .pitch-view {
+    background: linear-gradient(180deg, #1f6b3f 0%, #144d2c 100%);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    min-height: 300px;
+    position: relative;
+    overflow: hidden;
+    padding: 16px;
+  }
+
+  .pitch-view::before {
+    content: "";
+    position: absolute;
+    inset: 12px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+  }
+
+  .pitch-center-circle {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 80px; height: 80px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    transform: translate(-50%,-50%);
+  }
+
+  .pitch-message {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    z-index: 2;
+    background: rgba(0,0,0,0.25);
+  }
+
+  .commentary-log {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 12px;
+    height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: .9rem;
+  }
+
+  .commentary-log::-webkit-scrollbar { width: 8px; }
+  .commentary-log::-webkit-scrollbar-thumb {
+    background: rgba(74,222,128,0.4);
+    border-radius: 4px;
+  }
+
+  .comment-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border-left: 3px solid rgba(255,255,255,0.2);
+    line-height: 1.4;
+    animation: slideIn .35s ease;
+  }
+
+  .comment-item.goal { border-left-color: var(--gold); background: rgba(254,190,16,0.08); }
+  .comment-item.save { border-left-color: var(--green-rating); background: rgba(74,222,128,0.06); }
+  .comment-item.sub  { border-left-color: var(--sub-color); background: rgba(96,165,250,0.10); color: #dbeafe; }
+  .comment-item.info { border-left-color: #ef4444; background: rgba(239,68,68,0.10); color: #fee2e2; }
+
+  .comment-item .minute {
+    font-weight: 900;
+    color: var(--gold);
+    margin-right: 6px;
+  }
+
+  .comment-item.sub .minute { color: var(--sub-color); }
+  .comment-item.info .minute { color: #ef4444; }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .match-footer {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .match-controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+
+  .match-controls .btn {
+    padding: 10px 22px;
+    font-size: .9rem;
+  }
+
+  .final-result {
+    text-align: center;
+    padding: 20px;
+    margin-top: 12px;
+    background: linear-gradient(180deg, rgba(254,190,16,0.12), rgba(0,0,0,0.4));
+    border: 2px solid rgba(254,190,16,0.4);
+    border-radius: 14px;
+    animation: fadeIn .5s ease;
+    width: 100%;
+  }
+
+  .final-result h3 {
+    font-size: 1.5rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  .final-result .final-score {
+    font-size: 2.4rem;
+    font-weight: 900;
+    letter-spacing: 4px;
+    margin: 8px 0;
+  }
+
+  .match-report {
+    margin-top: 14px;
+    text-align: left;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+
+  .match-report h4 {
+    font-size: .85rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 6px;
+  }
+
+  .match-report .report-line {
+    font-size: .9rem;
+    padding: 5px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .match-report .report-minute { font-weight: 900; color: var(--gold); min-width: 42px; }
+  .match-report .report-goal-team { color: #ffffff; }
+  .match-report .report-assist { color: var(--text-dim); font-size: .82rem; }
+
+  .scorers-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  .scorers-table th {
+    text-align: left;
+    font-size: .7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+  .scorers-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .scorers-table tr:first-child td { color: var(--gold); font-weight: 900; }
+
+  .error-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: #b91c1c;
+    color: #fff;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: transform .35s ease;
+    z-index: 1000;
+  }
+  .error-toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ===================== ТУРНИР ===================== */
+  .bracket-wrap { max-width: 900px; margin: 0 auto; text-align: center; }
+  .bracket-round { margin-bottom: 22px; }
+
+  .bracket-round-label {
+    font-size: .75rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 6px;
+  }
+
+  .bracket-matches {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  @media (max-width: 640px) { .bracket-matches { grid-template-columns: 1fr; } }
+
+  .bracket-match {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    font-weight: 700;
+    font-size: .9rem;
+    position: relative;
+  }
+
+  .bracket-match.you {
+    border-color: rgba(254,190,16,0.5);
+    background: rgba(254,190,16,0.06);
+  }
+
+  .bracket-match.current {
+    border-color: var(--gold);
+    box-shadow: 0 0 20px rgba(254,190,16,0.3);
+    animation: pulseMatch 2s ease-in-out infinite;
+  }
+
+  @keyframes pulseMatch {
+    0%,100% { box-shadow: 0 0 20px rgba(254,190,16,0.3); }
+    50% { box-shadow: 0 0 30px rgba(254,190,16,0.6); }
+  }
+
+  .bracket-team {
+    flex: 1;
+    text-align: center;
+    letter-spacing: 1px;
+    font-size: .85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bracket-score {
+    font-size: .9rem;
+    color: var(--gold);
+    min-width: 40px;
+    text-align: center;
+    font-weight: 900;
+  }
+
+  .bracket-team.win { color: var(--gold); }
+  .bracket-team.lose { color: var(--text-dim); opacity: .6; }
+
+  .bracket-champion {
+    margin-top: 20px;
+    padding: 20px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(254,190,16,0.15), rgba(0,0,0,0.4));
+    border: 2px solid rgba(254,190,16,0.5);
+  }
+
+  .bracket-champion h3 {
+    font-size: 1.1rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .bracket-champion .champion-name {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: var(--gold);
+    letter-spacing: 2px;
+  }
+
+  /* ===================== ПЕНАЛЬТИ ===================== */
+  .pens-container { max-width: 800px; margin: 0 auto; text-align: center; }
+
+  .pens-title {
+    font-size: clamp(1.6rem,6vw,2.4rem);
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+
+  .pens-subtitle {
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    font-size: .85rem;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .pens-scoreboard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.3));
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 16px 24px;
+    margin-bottom: 20px;
+  }
+
+  .pens-score-team { flex: 1; text-align: center; }
+
+  .pens-score-team .pens-team-name {
+    font-size: .8rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .pens-score-team .pens-team-score {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(254,190,16,0.6);
+  }
+
+  .pens-round {
+    font-size: .8rem;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    padding: 0 16px;
+  }
+
+  .pens-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .pens-dot {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: .9rem;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.35);
+    transition: all .3s ease;
+  }
+
+  .pens-dot.scored {
+    background: rgba(74,222,128,0.25);
+    border-color: var(--green-rating);
+    color: var(--green-rating);
+    box-shadow: 0 0 15px rgba(74,222,128,0.5);
+  }
+
+  .pens-dot.missed {
+    background: rgba(239,68,68,0.25);
+    border-color: #ef4444;
+    color: #ef4444;
+    box-shadow: 0 0 15px rgba(239,68,68,0.5);
+  }
+
+  .pens-dot.current {
+    border-color: var(--gold);
+    box-shadow: 0 0 20px rgba(254,190,16,0.6);
+    animation: pulseDot 1s ease-in-out infinite;
+  }
+
+  @keyframes pulseDot {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+
+  .pens-log {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 12px;
+    max-height: 260px;
+    min-height: 120px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: .88rem;
+    text-align: left;
+    margin-bottom: 20px;
+  }
+
+  .pens-log::-webkit-scrollbar { width: 8px; }
+  .pens-log::-webkit-scrollbar-thumb { background: rgba(74,222,128,0.4); border-radius: 4px; }
+
+  .pens-log-item {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border-left: 3px solid rgba(255,255,255,0.2);
+    animation: slideIn .3s ease;
+  }
+
+  .pens-log-item.scored { border-left-color: var(--green-rating); background: rgba(74,222,128,0.08); }
+  .pens-log-item.missed { border-left-color: #ef4444; background: rgba(239,68,68,0.08); }
+  .pens-log-item .pens-shooter { font-weight: 700; }
+
+  .pens-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+
+  /* ===================== ТАКТИКА ===================== */
+  .tactic-wrap { max-width: 900px; margin: 0 auto; text-align: center; }
+
+  .tactic-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+  }
+
+  @media (max-width: 720px) { .tactic-grid { grid-template-columns: 1fr; } }
+
+  .tactic-card {
+    padding: 24px 18px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.15);
+    cursor: pointer;
+    transition: all .25s ease;
+    text-align: center;
+  }
+
+  .tactic-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(74,222,128,0.6);
+    box-shadow: 0 10px 28px rgba(74,222,128,0.25);
+  }
+
+  .tactic-card.active {
+    border-color: var(--gold);
+    background: linear-gradient(180deg, rgba(254,190,16,0.15), rgba(0,0,0,0.35));
+    box-shadow: 0 0 30px rgba(254,190,16,0.4);
+  }
+
+  .tactic-card .tactic-icon { font-size: 2.6rem; margin-bottom: 12px; }
+  .tactic-card .tactic-name {
+    font-size: 1.2rem; font-weight: 900; letter-spacing: 2px;
+    text-transform: uppercase; color: var(--gold); margin-bottom: 10px;
+  }
+  .tactic-card .tactic-desc { font-size: .85rem; color: var(--text-dim); line-height: 1.5; }
+
+  .tactic-current {
+    margin-top: 20px;
+    padding: 12px 18px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.3);
+    color: var(--text-dim);
+    font-size: .9rem;
+    border-left: 3px solid var(--gold);
+  }
+
+  /* ===================== ЭКРАН ПАУЗЫ / ЗАМЕН ===================== */
+  .pause-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 500;
+    display: none;
+    overflow-y: auto;
+    padding: 20px;
+  }
+
+  .pause-overlay.active { display: block; }
+
+  .pause-inner {
+    max-width: 1000px;
+    margin: 0 auto;
+    background: linear-gradient(180deg, #10321f 0%, #0b1a12 100%);
+    border: 2px solid var(--gold);
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 60px rgba(254,190,16,0.25);
+  }
+
+  .pause-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .pause-title {
+    font-size: 1.4rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  .pause-timer {
+    font-size: 1.6rem;
+    font-weight: 900;
+    color: #ef4444;
+    text-shadow: 0 0 20px rgba(239,68,68,0.6);
+    animation: pulseTimer 1s ease-in-out infinite;
+    font-variant-numeric: tabular-nums;
+  }
+
+  @keyframes pulseTimer {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+  }
+
+  .pause-stats {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: .85rem;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+  }
+
+  .pause-stats b { color: var(--gold); }
+
+  .pause-columns {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 780px) { .pause-columns { grid-template-columns: 1fr; } }
+
+  .pause-col-title {
+    font-size: .8rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding-bottom: 6px;
+  }
+
+  .pause-list { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow-y: auto; padding-right: 4px; }
+  .pause-list::-webkit-scrollbar { width: 6px; }
+  .pause-list::-webkit-scrollbar-thumb { background: rgba(74,222,128,0.4); border-radius: 4px; }
+
+  .pause-player {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    font-size: .85rem;
+    transition: all .15s ease;
+    user-select: none;
+  }
+
+  .pause-player:hover {
+    background: rgba(74,222,128,0.08);
+    border-color: rgba(74,222,128,0.3);
+  }
+
+  .pause-player.selected {
+    background: rgba(74,222,128,0.2);
+    border-color: var(--green-rating);
+    box-shadow: 0 0 0 2px rgba(74,222,128,0.35);
+  }
+
+  .pause-player .p-pos {
+    min-width: 40px;
+    font-weight: 900;
+    font-size: .7rem;
+    padding: 2px 5px;
+    background: rgba(0,0,0,0.4);
+    border-radius: 5px;
+    text-align: center;
+    color: #cde8d3;
+  }
+
+  .pause-player .p-name { flex: 1; font-weight: 600; }
+  .pause-player .p-rating {
+    font-weight: 900;
+    font-size: .95rem;
+    min-width: 30px;
+    text-align: center;
+  }
+
+  .pause-tactics {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .pause-tactic-btn {
+    flex: 1;
+    min-width: 80px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.15);
+    color: #fff;
+    font-weight: 700;
+    font-size: .8rem;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all .2s ease;
+  }
+
+  .pause-tactic-btn:hover { border-color: rgba(74,222,128,0.5); }
+  .pause-tactic-btn.active {
+    border-color: var(--gold);
+    background: rgba(254,190,16,0.15);
+    color: var(--gold);
+  }
+
+  .pause-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  .pause-hint {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.3);
+    font-size: .8rem;
+    color: var(--text-dim);
+    border-left: 3px solid var(--sub-color);
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== ЭКРАН 1: ВЫБОР КОМАНДЫ ===================== -->
+<div id="screen-team" class="screen active">
+  <h1 class="title-main">SML GAME</h1>
+  <p class="subtitle">Выбери свой клуб</p>
+  <div id="team-select" class="team-select"></div>
+</div>
+
+<!-- ===================== ЭКРАН 2: МЕНЮ ===================== -->
+<div id="screen-menu" class="screen">
+  <div class="menu-wrap">
+    <div id="menu-badge" class="menu-badge">?</div>
+    <div id="menu-club-name" class="menu-club-name">—</div>
+    <div class="subtitle" style="margin-bottom:0">Главное меню</div>
+
+    <div class="menu-grid">
+      <button class="menu-btn" onclick="showScreen('screen-squad')">
+        <img src="4-3-3.jpg" class="menu-img" alt="Состав">
+        <div class="menu-label">Состав</div>
+      </button>
+
+      <button class="menu-btn" onclick="startTournament()">
+        <img src="12ec5328e5d6d5c11df00779771b1f0b.jpg" class="menu-img" alt="Лига Чемпионов">
+        <div class="menu-label">Лига Чемпионов</div>
+      </button>
+
+      <button class="menu-btn" onclick="showScreen('screen-tactic')">
+        <img src="4.jpg" class="menu-img" alt="Тактика">
+        <div class="menu-label">Тактика</div>
+      </button>
+
+      <button class="menu-btn" onclick="startMatch()">
+        <img src="photo_259875.jpg" class="menu-img" alt="Товарищеский матч">
+        <div class="menu-label">Товарищеский матч</div>
+      </button>
+    </div>
+
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-team')">Сменить команду</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 3: СОСТАВ ===================== -->
+<div id="screen-squad" class="screen">
+  <div class="squad-screen-inner">
+    <div class="squad-header">
+      <h2>Состав команды</h2>
+      <button class="btn secondary" onclick="showScreen('screen-menu')">← В меню</button>
+    </div>
+
+    <div class="squad-columns">
+      <div>
+        <div class="squad-column-title">Основной состав (11)</div>
+        <div id="starting-list" class="squad-list"></div>
+      </div>
+      <div>
+        <div class="squad-column-title">Замены (4)</div>
+        <div id="bench-list" class="squad-list"></div>
+      </div>
+    </div>
+
+    <div class="squad-hint">
+      💡 Кликни по игроку основы, затем по игроку из замены — они поменяются местами.
+      Также можно менять двух игроков внутри основы. Позиции сохраняются.
+    </div>
+
+    <div style="margin-top:18px;text-align:center">
+      <button class="btn" onclick="showScreen('screen-menu')">Вернуться в меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 3.5: ТАКТИКА ===================== -->
+<div id="screen-tactic" class="screen">
+  <div class="tactic-wrap">
+    <h1 class="title-main" style="font-size:clamp(1.8rem,6vw,2.8rem)">Тактика</h1>
+    <p class="subtitle">Выбери стиль игры</p>
+
+    <div class="tactic-grid">
+      <div class="tactic-card" data-tactic="attack" onclick="setTactic('attack')">
+        <div class="tactic-icon">⚔️</div>
+        <div class="tactic-name">Атака</div>
+        <div class="tactic-desc">Больше вероятность забить, но и больше вероятность пропустить.</div>
+      </div>
+
+      <div class="tactic-card" data-tactic="balance" onclick="setTactic('balance')">
+        <div class="tactic-icon">⚖️</div>
+        <div class="tactic-name">Баланс</div>
+        <div class="tactic-desc">Сбалансированно защищаться и атаковать.</div>
+      </div>
+
+      <div class="tactic-card" data-tactic="defense" onclick="setTactic('defense')">
+        <div class="tactic-icon">🛡️</div>
+        <div class="tactic-name">Защита</div>
+        <div class="tactic-desc">Меньше вероятность пропустить, но и меньше вероятность забить.</div>
+      </div>
+    </div>
+
+    <div class="tactic-current" id="tactic-current">Текущая тактика: <b>Баланс</b></div>
+
+    <div style="margin-top:24px">
+      <button class="btn" onclick="showScreen('screen-menu')">Вернуться в меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 4: МАТЧ ===================== -->
+<div id="screen-match" class="screen">
+  <div class="match-screen-inner">
+    <div class="scoreboard">
+      <div id="score-home-name" class="score-team home">HOME</div>
+      <div id="score-numbers" class="score-numbers">0 : 0</div>
+      <div id="score-away-name" class="score-team away">AWAY</div>
+    </div>
+
+    <div id="match-timer" class="match-timer">0'</div>
+
+    <div class="match-info" id="match-info">
+      <span>Остановки: <b id="info-pauses">3/3</b></span>
+      <span>Замены: <b id="info-subs">0/4</b></span>
+      <span>Тактика: <b id="info-tactic">Баланс</b></span>
+    </div>
+
+    <div class="match-body">
+      <div class="pitch-view">
+        <div class="pitch-center-circle"></div>
+        <div id="pitch-message" class="pitch-message">Матч начинается...</div>
+      </div>
+      <div id="commentary-log" class="commentary-log"></div>
+    </div>
+
+    <div class="match-controls" id="match-controls">
+      <button class="btn" id="btn-pause" onclick="openPause()">⏸ Остановка (20 сек)</button>
+    </div>
+
+    <div id="match-footer" class="match-footer"></div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 5: ЛИГА ЧЕМПИОНОВ ===================== -->
+<div id="screen-tournament" class="screen">
+  <div class="bracket-wrap">
+    <h1 class="title-main" style="font-size:clamp(1.6rem,5vw,2.6rem)">🏆 Лига Чемпионов</h1>
+    <p class="subtitle" id="tournament-subtitle">1/4 → 1/2 → Финал</p>
+
+    <div id="tournament-bracket"></div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px">
+      <button id="tournament-action-btn" class="btn" onclick="tournamentAction()">Играть матч</button>
+      <button class="btn secondary" onclick="leaveTournamentToMenu()">← В меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 6: ПЕНАЛЬТИ ===================== -->
+<div id="screen-penalties" class="screen">
+  <div class="pens-container">
+    <h1 class="pens-title">⚽ Серия пенальти</h1>
+    <p class="pens-subtitle" id="pens-stage-label">Ничья в основное время</p>
+
+    <div class="pens-scoreboard">
+      <div class="pens-score-team">
+        <div class="pens-team-name" id="pens-home-name">HOME</div>
+        <div class="pens-team-score" id="pens-home-score">0</div>
+      </div>
+      <div class="pens-round" id="pens-round-label">Раунд 1 / 5</div>
+      <div class="pens-score-team">
+        <div class="pens-team-name" id="pens-away-name">AWAY</div>
+        <div class="pens-team-score" id="pens-away-score">0</div>
+      </div>
+    </div>
+
+    <div class="pens-dots" id="pens-dots"></div>
+    <div class="pens-log" id="pens-log"></div>
+
+    <div class="pens-actions" id="pens-actions">
+      <button class="btn" id="pens-shoot-btn" onclick="takePenalty()">Пробить пенальти</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ОВЕРЛЕЙ: ПАУЗА / ЗАМЕНЫ ===================== -->
+<div id="pause-overlay" class="pause-overlay">
+  <div class="pause-inner">
+    <div class="pause-header">
+      <div class="pause-title" id="pause-title">⏸ Остановка матча</div>
+      <div class="pause-timer" id="pause-timer">20</div>
+    </div>
+
+    <div class="pause-stats">
+      <span>Остановки: <b id="pause-info-pauses">3/3</b></span>
+      <span>Замены: <b id="pause-info-subs">0/4</b></span>
+      <span>Минута: <b id="pause-info-minute">0'</b></span>
+    </div>
+
+    <div class="pause-col-title">Тактика</div>
+    <div class="pause-tactics">
+      <button class="pause-tactic-btn" data-tactic="attack" onclick="pauseSetTactic('attack')">⚔️ Атака</button>
+      <button class="pause-tactic-btn" data-tactic="balance" onclick="pauseSetTactic('balance')">⚖️ Баланс</button>
+      <button class="pause-tactic-btn" data-tactic="defense" onclick="pauseSetTactic('defense')">🛡️ Защита</button>
+    </div>
+
+    <div class="pause-columns">
+      <div>
+        <div class="pause-col-title">Основной состав</div>
+        <div id="pause-starting" class="pause-list"></div>
+      </div>
+      <div>
+        <div class="pause-col-title">Замены</div>
+        <div id="pause-bench" class="pause-list"></div>
+      </div>
+    </div>
+
+    <div class="pause-hint">
+      💡 Клик по игроку основы, затем по игроку из замены → замена.
+      Клик по двум игрокам основы → обмен местами.
+      Замены и обмены не тратят шанс остановки — только остановки ограничены.
+    </div>
+
+    <div class="pause-actions">
+      <button class="btn" id="pause-confirm-btn" onclick="closePause()">▶ Продолжить матч</button>
+    </div>
+  </div>
+</div>
+
+<div id="error-toast" class="error-toast"></div>
+
+<script>
+/* =========================================================================
+   SML GAME — футбольный симулятор
+   + Остановки матча, замены, смена тактики, перерыв
+   ========================================================================= */
+
+/* ------------------------- КОНФИГ МАТЧА ------------------------- */
+const MATCH_CONFIG = {
+  realDuration: 120,     // общая длительность матча (реальные секунды, без пауз)
+  gameMinutes: 90,       // игровых минут
+  halfTimeMinute: 45,    // минута перерыва
+  pausesPerMatch: 3,     // остановок на игрока
+  pauseDuration: 20,     // секунд на остановку
+  halfTimeDuration: 10,  // секунд на перерыв
+  maxSubs: 4             // макс. замен за матч
+};
+
+const STARTING_POSITIONS = ["ЛВ","НАП","ПВ","ЦАП","ЦП","ЦП","ЛЗ","ЦЗ","ЦЗ","ПЗ","ВРТ"];
+const BENCH_POSITIONS    = ["НАП","ЦП","ЦЗ","ВРТ"];
+
+const TEAMS = {
+  real: {
+    id: "real", name: "Реал Мадрид", short: "РЕА", badgeText: "RMA", accentClass: "real",
+    starting: [
+      { pos:"ЛВ",  name:"Винисиус Джуниор",       rating:89 },
+      { pos:"НАП", name:"Киллиан Мбаппе",         rating:91 },
+      { pos:"ПВ",  name:"Ян Диоманде",            rating:84 },
+      { pos:"ЦАП", name:"Бернарду Силва",         rating:84 },
+      { pos:"ЦП",  name:"Джуд Беллингем",         rating:90 },
+      { pos:"ЦП",  name:"Федерико Вальверде",     rating:87 },
+      { pos:"ЛЗ",  name:"Марк Кукурелья",         rating:86 },
+      { pos:"ЦЗ",  name:"Дин Хейсен",             rating:81 },
+      { pos:"ЦЗ",  name:"Ибраима Конате",         rating:84 },
+      { pos:"ПЗ",  name:"Дензел Дюмфрис",         rating:83 },
+      { pos:"ВРТ", name:"Тибо Куртуа",            rating:90 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Карлос Эспи",        rating:77 },
+      { pos:"ЦП",  name:"Эдуардо Камавинга",  rating:81 },
+      { pos:"ЦЗ",  name:"Антонио Рюдигер",    rating:83 },
+      { pos:"ВРТ", name:"Андрей Лунин",       rating:80 }
+    ]
+  },
+  barca: {
+    id: "barca", name: "Барселона", short: "БАР", badgeText: "FCB", accentClass: "barca",
+    starting: [
+      { pos:"ЛВ",  name:"Антони Гордон",       rating:82 },
+      { pos:"НАП", name:"Рафинья",             rating:88 },
+      { pos:"ПВ",  name:"Ламин Ямаль",         rating:90 },
+      { pos:"ЦАП", name:"Фермин Лопез",        rating:85 },
+      { pos:"ЦП",  name:"Родри",               rating:90 },
+      { pos:"ЦП",  name:"Педри",               rating:90 },
+      { pos:"ЛЗ",  name:"Алехандро Бальде",    rating:82 },
+      { pos:"ЦЗ",  name:"Эрик Гарсия",         rating:85 },
+      { pos:"ЦЗ",  name:"Пау Кубарси",         rating:86 },
+      { pos:"ПЗ",  name:"Жоао Кансело",        rating:83 },
+      { pos:"ВРТ", name:"Жуан Гарсия",         rating:86 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Габриэль Жезус",     rating:79 },
+      { pos:"ЦП",  name:"Гави",               rating:83 },
+      { pos:"ЦЗ",  name:"Жерар Мартин",       rating:79 },
+      { pos:"ВРТ", name:"Доминик Ливакович",  rating:78 }
+    ]
+  },
+  city: {
+    id: "city", name: "Манчестер Сити", short: "МС", badgeText: "MCI", accentClass: "city",
+    starting: [
+      { pos:"ЛВ",  name:"Жереми Доку",          rating:84 },
+      { pos:"НАП", name:"Эрлинг Холланд",       rating:91 },
+      { pos:"ПВ",  name:"Антуан Семеньо",       rating:85 },
+      { pos:"ЦАП", name:"Фил Фоден",            rating:84 },
+      { pos:"ЦП",  name:"Эллиот Андерсон",      rating:84 },
+      { pos:"ЦП",  name:"Энсо Фернандес",       rating:86 },
+      { pos:"ЛЗ",  name:"Йошко Гвардиол",       rating:85 },
+      { pos:"ЦЗ",  name:"Рубен Диаш",           rating:87 },
+      { pos:"ЦЗ",  name:"Марк Гехи",            rating:85 },
+      { pos:"ПЗ",  name:"Матеуш Нуньеш",        rating:83 },
+      { pos:"ВРТ", name:"Джанлуиджи Доннарумма", rating:89 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Аллан",                rating:75 },
+      { pos:"ЦП",  name:"Аюб Буадди",           rating:80 },
+      { pos:"ЦЗ",  name:"Абдукодир Хусанов",    rating:82 },
+      { pos:"ВРТ", name:"Херонимо Рулли",       rating:80 }
+    ]
+  },
+  united: {
+    id: "united", name: "Манчестер Юнайтед", short: "МЮ", badgeText: "MUN", accentClass: "united",
+    starting: [
+      { pos:"ЛВ",  name:"Маркус Рэшфорд",       rating:82 },
+      { pos:"НАП", name:"Маттеус Кунья",        rating:84 },
+      { pos:"ПВ",  name:"Браян Мбемо",          rating:84 },
+      { pos:"ЦАП", name:"Бруну Фернандеш",      rating:89 },
+      { pos:"ЦП",  name:"Андрей Сантос",        rating:80 },
+      { pos:"ЦП",  name:"Юри Тиллеманс",        rating:85 },
+      { pos:"ЛЗ",  name:"Люк Шоу",              rating:79 },
+      { pos:"ЦЗ",  name:"Лисандро Мартинес",    rating:82 },
+      { pos:"ЦЗ",  name:"Матес Де Лигт",        rating:82 },
+      { pos:"ПЗ",  name:"Диогу Далот",          rating:78 },
+      { pos:"ВРТ", name:"Сенне Ламменс",        rating:82 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Бенжамин Шешко",  rating:82 },
+      { pos:"ЦП",  name:"Коби Майну",      rating:81 },
+      { pos:"ЦЗ",  name:"Лени Йоро",       rating:78 },
+      { pos:"ВРТ", name:"Карл Дарлоу",     rating:76 }
+    ]
+  },
+  villa: {
+    id: "villa", name: "Астон Вилла", short: "АВ", badgeText: "AVL", accentClass: "villa",
+    starting: [
+      { pos:"ЛВ",  name:"Алехандро Гарначо",    rating:77 },
+      { pos:"НАП", name:"Николас Джексон",      rating:79 },
+      { pos:"ПВ",  name:"Ибахим Мбайе",         rating:76 },
+      { pos:"ЦАП", name:"Йохан Манзамби",       rating:80 },
+      { pos:"ЦП",  name:"Джон МакГин",          rating:83 },
+      { pos:"ЦП",  name:"Амаду Онана",          rating:81 },
+      { pos:"ЛЗ",  name:"Маттео Руджери",       rating:78 },
+      { pos:"ЦЗ",  name:"Виктор Линделёф",      rating:77 },
+      { pos:"ЦЗ",  name:"Пау Торрес",           rating:81 },
+      { pos:"ПЗ",  name:"Аарон Ван-Биссака",    rating:78 },
+      { pos:"ВРТ", name:"Марко Бизот",          rating:77 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Темми Абрахам",      rating:77 },
+      { pos:"ЦП",  name:"Эмильяно Буэндиа",   rating:79 },
+      { pos:"ЦЗ",  name:"Тайрон Мингс",       rating:77 },
+      { pos:"ВРТ", name:"Зион Сузуки",        rating:76 }
+    ]
+  },
+  arsenal: {
+    id: "arsenal", name: "Арсенал", short: "АРС", badgeText: "ARS", accentClass: "arsenal",
+    starting: [
+      { pos:"ЛВ",  name:"Христос Цолис",       rating:82 },
+      { pos:"НАП", name:"Виктор Дьекереш",     rating:86 },
+      { pos:"ПВ",  name:"Букайо Сака",         rating:87 },
+      { pos:"ЦАП", name:"Мартин Эдегор",       rating:86 },
+      { pos:"ЦП",  name:"Бруно Гимараеш",      rating:86 },
+      { pos:"ЦП",  name:"Деклан Райс",         rating:88 },
+      { pos:"ЛЗ",  name:"Рикардо Калафьори",   rating:82 },
+      { pos:"ЦЗ",  name:"Уильям Салиба",       rating:88 },
+      { pos:"ЦЗ",  name:"Габриэль",            rating:89 },
+      { pos:"ПЗ",  name:"Юрриен Тимбер",       rating:84 },
+      { pos:"ВРТ", name:"Давид Райа",          rating:88 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Кай Хаверц",      rating:81 },
+      { pos:"ЦП",  name:"Микель Мерино",   rating:83 },
+      { pos:"ЦЗ",  name:"Эзри Конса",      rating:84 },
+      { pos:"ВРТ", name:"Кепа",            rating:78 }
+    ]
+  },
+  bayern: {
+    id: "bayern", name: "Бавария", short: "БАВ", badgeText: "FCB", accentClass: "bayern",
+    starting: [
+      { pos:"ЛВ",  name:"Луиз Диаз",              rating:88 },
+      { pos:"НАП", name:"Харри Кейн",             rating:90 },
+      { pos:"ПВ",  name:"Майкл Олисе",            rating:90 },
+      { pos:"ЦАП", name:"Джамал Мусиала",         rating:87 },
+      { pos:"ЦП",  name:"Александр Павлович",     rating:83 },
+      { pos:"ЦП",  name:"Йохуа Киммих",           rating:88 },
+      { pos:"ЛЗ",  name:"Альфонсо Дэвис",         rating:82 },
+      { pos:"ЦЗ",  name:"Джонатан Та",            rating:87 },
+      { pos:"ЦЗ",  name:"Дайо Упамекано",         rating:87 },
+      { pos:"ПЗ",  name:"Корнад Лаймер",          rating:85 },
+      { pos:"ВРТ", name:"Мануэль Ноер",           rating:81 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Серж Гнабри",     rating:83 },
+      { pos:"ЦП",  name:"Том Бишоф",       rating:79 },
+      { pos:"ЦЗ",  name:"Ким Мин Чжэ",     rating:83 },
+      { pos:"ВРТ", name:"Йонас Урбиг",     rating:79 }
+    ]
+  },
+  chelsea: {
+    id: "chelsea", name: "Челси", short: "ЧЕЛ", badgeText: "CHE", accentClass: "chelsea",
+    starting: [
+      { pos:"ЛВ",  name:"Педро Нету",           rating:81 },
+      { pos:"НАП", name:"Жоао Педро",           rating:83 },
+      { pos:"ПВ",  name:"Эстевао",              rating:80 },
+      { pos:"ЦАП", name:"Коул Палмер",          rating:85 },
+      { pos:"ЦП",  name:"Морган Роджерс",       rating:84 },
+      { pos:"ЦП",  name:"Мойзес Кайседо",       rating:86 },
+      { pos:"ЛЗ",  name:"Йорел Хато",           rating:78 },
+      { pos:"ЦЗ",  name:"Леви Колвилл",         rating:80 },
+      { pos:"ЦЗ",  name:"Максенс Лакруа",       rating:82 },
+      { pos:"ПЗ",  name:"Рис Джеймс",           rating:84 },
+      { pos:"ВРТ", name:"Эмильяно Мартинез",    rating:85 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Данни Уелбек",     rating:80 },
+      { pos:"ЦП",  name:"Джордан Хендерсон", rating:78 },
+      { pos:"ЦЗ",  name:"Уесли Фофана",     rating:79 },
+      { pos:"ВРТ", name:"Майк Пендерс",     rating:79 }
+    ]
+  },
+  psg: {
+    id: "psg", name: "ПСЖ", short: "ПСЖ", badgeText: "PSG", accentClass: "psg",
+    starting: [
+      { pos:"ЛВ",  name:"Хвича Кварацхелия",   rating:89 },
+      { pos:"НАП", name:"Усман Дембеле",       rating:90 },
+      { pos:"ПВ",  name:"Дезире Дуэ",          rating:86 },
+      { pos:"ЦАП", name:"Витинья",             rating:90 },
+      { pos:"ЦП",  name:"Фабиан Руиз",         rating:86 },
+      { pos:"ЦП",  name:"Жоао Невеш",          rating:88 },
+      { pos:"ЛЗ",  name:"Нуну Мендеш",         rating:89 },
+      { pos:"ЦЗ",  name:"Маркиньос",           rating:87 },
+      { pos:"ЦЗ",  name:"Вильян Пачо",         rating:89 },
+      { pos:"ПЗ",  name:"Ашраф Хакими",        rating:88 },
+      { pos:"ВРТ", name:"Матвей Сафонов",      rating:83 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Ферран Торрес",     rating:84 },
+      { pos:"ЦП",  name:"Воран Заир-Емери",  rating:83 },
+      { pos:"ЦЗ",  name:"Илья Забарный",     rating:80 },
+      { pos:"ВРТ", name:"Люка Шевалье",      rating:80 }
+    ]
+  },
+  inter: {
+    id: "inter", name: "Интер", short: "ИНТ", badgeText: "INT", accentClass: "inter",
+    starting: [
+      { pos:"ЛВ",  name:"Маркус Тюрам",           rating:85 },
+      { pos:"НАП", name:"Лаутаро Мартинез",       rating:87 },
+      { pos:"ПВ",  name:"Луиз Энрике",            rating:77 },
+      { pos:"ЦАП", name:"Петар Сучич",            rating:78 },
+      { pos:"ЦП",  name:"Хакан Чанханоглу",       rating:85 },
+      { pos:"ЦП",  name:"Николо Барелла",         rating:87 },
+      { pos:"ЛЗ",  name:"Федерико Димарко",       rating:86 },
+      { pos:"ЦЗ",  name:"Мануэль Аканджи",        rating:83 },
+      { pos:"ЦЗ",  name:"Алессандро Бастони",     rating:86 },
+      { pos:"ПЗ",  name:"Джед Спенс",             rating:80 },
+      { pos:"ВРТ", name:"Иван Проведель",         rating:83 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Пио Эспозито",     rating:77 },
+      { pos:"ЦП",  name:"Кертис Джонс",     rating:80 },
+      { pos:"ЦЗ",  name:"Ян Биссек",        rating:78 },
+      { pos:"ВРТ", name:"Хосеп Мартинез",   rating:76 }
+    ]
+  },
+  milan: {
+    id: "milan", name: "Милан", short: "МИЛ", badgeText: "ACM", accentClass: "milan",
+    starting: [
+      { pos:"ЛВ",  name:"Омари Хатчинсон",         rating:76 },
+      { pos:"НАП", name:"Гонсало Рамуш",           rating:80 },
+      { pos:"ПВ",  name:"Кристьян Пулишич",        rating:83 },
+      { pos:"ЦАП", name:"Рубен Лофтус Чик",        rating:79 },
+      { pos:"ЦП",  name:"Лука Модрич",             rating:85 },
+      { pos:"ЦП",  name:"Адриен Рабьо",            rating:85 },
+      { pos:"ЛЗ",  name:"Первис Эступеньян",       rating:78 },
+      { pos:"ЦЗ",  name:"Марио Гиль",              rating:81 },
+      { pos:"ЦЗ",  name:"Страхинья Павлович",      rating:78 },
+      { pos:"ПЗ",  name:"Фикайо Томори",           rating:80 },
+      { pos:"ВРТ", name:"Майк Меньян",             rating:87 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Франческо Камарда",  rating:66 },
+      { pos:"ЦП",  name:"Ардон Яшари",        rating:78 },
+      { pos:"ЦЗ",  name:"Кони де Винтер",     rating:75 },
+      { pos:"ВРТ", name:"Пиерто Террасьяно",  rating:76 }
+    ]
+  },
+  liverpool: {
+    id: "liverpool", name: "Ливерпуль", short: "ЛИВ", badgeText: "LFC", accentClass: "liverpool",
+    starting: [
+      { pos:"ЛВ",  name:"Коди Гакпо",                 rating:82 },
+      { pos:"НАП", name:"Александр Исак",             rating:86 },
+      { pos:"ПВ",  name:"Бредли Барколя",             rating:83 },
+      { pos:"ЦАП", name:"Флориан Вирц",               rating:86 },
+      { pos:"ЦП",  name:"Доминик Сзобосзлай",         rating:86 },
+      { pos:"ЦП",  name:"Алексис Мак Алистер",        rating:84 },
+      { pos:"ЛЗ",  name:"Милош Керкез",               rating:81 },
+      { pos:"ЦЗ",  name:"Вирджил Ван Дейк",           rating:88 },
+      { pos:"ЦЗ",  name:"Рональд Араухо",             rating:80 },
+      { pos:"ПЗ",  name:"Жереми Фримпонг",            rating:81 },
+      { pos:"ВРТ", name:"Алисон",                     rating:87 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Юго Экитике",            rating:85 },
+      { pos:"ЦП",  name:"Раян Гравенберх",        rating:86 },
+      { pos:"ЦЗ",  name:"Джо Гомез",              rating:79 },
+      { pos:"ВРТ", name:"Гиорги Мамардашвили",    rating:83 }
+    ]
+  },
+  atletico: {
+    id: "atletico", name: "Атлетико Мадрид", short: "АТМ", badgeText: "ATM", accentClass: "atletico",
+    starting: [
+      { pos:"ЛВ",  name:"Алекс Баэна",             rating:83 },
+      { pos:"НАП", name:"Хулиан Альварез",         rating:86 },
+      { pos:"ПВ",  name:"Джулиано Симеоне",        rating:82 },
+      { pos:"ЦАП", name:"Ли Кан Ин",               rating:80 },
+      { pos:"ЦП",  name:"Пабло Барриос",           rating:83 },
+      { pos:"ЦП",  name:"Коке",                    rating:81 },
+      { pos:"ЛЗ",  name:"Алехандро Гримальдо",     rating:85 },
+      { pos:"ЦЗ",  name:"Давид Ганско",            rating:83 },
+      { pos:"ЦЗ",  name:"Робин Ле Норман",         rating:81 },
+      { pos:"ПЗ",  name:"Маркос Льоренте",         rating:85 },
+      { pos:"ВРТ", name:"Ян Облак",                rating:88 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Джонатан Дэвид",       rating:80 },
+      { pos:"ЦП",  name:"Мортен Юльманд",       rating:83 },
+      { pos:"ЦЗ",  name:"Кристиан Ромеро",      rating:82 },
+      { pos:"ВРТ", name:"Хуан Муссо",           rating:82 }
+    ]
+  },
+  dortmund: {
+    id: "dortmund", name: "Боруссия Дортмунд", short: "БОР", badgeText: "BVB", accentClass: "dortmund",
+    starting: [
+      { pos:"ЛВ",  name:"Максимилиан Байер",     rating:81 },
+      { pos:"НАП", name:"Серу Гирасси",          rating:85 },
+      { pos:"ПВ",  name:"Итан Нванери",          rating:75 },
+      { pos:"ЦАП", name:"Джоб Беллингем",        rating:77 },
+      { pos:"ЦП",  name:"Марсель Забитцер",      rating:81 },
+      { pos:"ЦП",  name:"Феликс Нмеча",          rating:85 },
+      { pos:"ЛЗ",  name:"Даниэль Свенссон",      rating:79 },
+      { pos:"ЦЗ",  name:"Вальдемар Антон",       rating:84 },
+      { pos:"ЦЗ",  name:"Нико Шлоттербек",       rating:87 },
+      { pos:"ПЗ",  name:"Юлиан Рюерсон",         rating:82 },
+      { pos:"ВРТ", name:"Грегор Кобель",         rating:87 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Фабио Силва",         rating:78 },
+      { pos:"ЦП",  name:"Джой Верман",         rating:82 },
+      { pos:"ЦЗ",  name:"Рами Бенсебайни",     rating:79 },
+      { pos:"ВРТ", name:"Александр Мейер",     rating:74 }
+    ]
+  }
+};
+
+const ALL_TEAM_IDS = Object.keys(TEAMS);
+
+const state = {
+  playerTeamId: null,
+  selectedPlayer: null,
+  match: null,
+  tournament: null,
+  penalties: null,
+  tactic: "balance"
+};
+
+/* ------------------------- ЭКРАНЫ ------------------------- */
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  const el = document.getElementById(id);
+  if (el) el.classList.add("active");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showError(msg) {
+  const t = document.getElementById("error-toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(showError._tid);
+  showError._tid = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* ------------------------- ВЫБОР КОМАНДЫ ------------------------- */
+function renderTeamSelect() {
+  const container = document.getElementById("team-select");
+  container.innerHTML = "";
+  ALL_TEAM_IDS.forEach(id => {
+    const team = TEAMS[id];
+    const card = document.createElement("div");
+    card.className = "team-card " + team.accentClass;
+    card.onclick = () => selectTeam(id);
+    card.innerHTML = `
+      <div>
+        <div class="club-badge">${team.badgeText}</div>
+        <div class="club-name">${team.name}</div>
+        <div class="club-tag">${team.short}</div>
+      </div>
+      <div style="font-size:1.2rem;letter-spacing:4px;margin-top:16px">★★★★★</div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function selectTeam(teamId) {
+  state.playerTeamId = teamId;
+  state.selectedPlayer = null;
+  refreshMenu();
+  showScreen("screen-menu");
+}
+
+function refreshMenu() {
+  const team = TEAMS[state.playerTeamId];
+  if (!team) return;
+  const badge = document.getElementById("menu-badge");
+  badge.textContent = team.badgeText;
+  badge.className = "menu-badge " + team.accentClass;
+  document.getElementById("menu-club-name").textContent = team.name;
+}
+
+/* ------------------------- ТАКТИКА ------------------------- */
+const TACTIC_LABELS = { attack: "Атака", balance: "Баланс", defense: "Защита" };
+
+function setTactic(tactic) {
+  state.tactic = tactic;
+  updateTacticUI();
+}
+
+function updateTacticUI() {
+  document.querySelectorAll(".tactic-card").forEach(c => {
+    c.classList.toggle("active", c.dataset.tactic === state.tactic);
+  });
+  const cur = document.getElementById("tactic-current");
+  if (cur) cur.innerHTML = `Текущая тактика: <b>${TACTIC_LABELS[state.tactic]}</b>`;
+}
+
+function tacticMultiplier(tactic) {
+  if (tactic === "attack")  return 1.20;
+  if (tactic === "defense") return 0.80;
+  return 1.00;
+}
+
+/* ------------------------- СОСТАВ ------------------------- */
+function ratingClass(r) {
+  if (r >= 90) return "rating-gold";
+  if (r >= 85) return "rating-green";
+  return "rating-gray";
+}
+
+function renderSquad() {
+  const team = TEAMS[state.playerTeamId];
+  if (!team) return;
+  const startList = document.getElementById("starting-list");
+  const benchList = document.getElementById("bench-list");
+  startList.innerHTML = "";
+  benchList.innerHTML = "";
+  team.starting.forEach((p, i) => startList.appendChild(buildPlayerCard(p, "starting", i)));
+  team.bench.forEach((p, i) => benchList.appendChild(buildPlayerCard(p, "bench", i)));
+}
+
+function buildPlayerCard(player, listName, index) {
+  const div = document.createElement("div");
+  div.className = "player-card";
+  const sel = state.selectedPlayer;
+  if (sel && sel.list === listName && sel.index === index) div.classList.add("selected");
+  div.innerHTML = `
+    <span class="player-pos">${player.pos}</span>
+    <span class="player-name">${player.name}</span>
+    <span class="player-rating ${ratingClass(player.rating)}">${player.rating}</span>
+  `;
+  div.onclick = () => onPlayerClick(listName, index);
+  return div;
+}
+
+function onPlayerClick(listName, index) {
+  const sel = state.selectedPlayer;
+  if (!sel) { state.selectedPlayer = { list: listName, index }; renderSquad(); return; }
+  if (sel.list === listName && sel.index === index) { state.selectedPlayer = null; renderSquad(); return; }
+  swapPlayers(sel, { list: listName, index });
+  state.selectedPlayer = null;
+  renderSquad();
+}
+
+function swapPlayers(a, b) {
+  const team = TEAMS[state.playerTeamId];
+  const listA = a.list === "starting" ? team.starting : team.bench;
+  const listB = b.list === "starting" ? team.starting : team.bench;
+  const playerA = listA[a.index];
+  const playerB = listB[b.index];
+  const slotPosA = a.list === "starting" ? STARTING_POSITIONS[a.index] : BENCH_POSITIONS[a.index];
+  const slotPosB = b.list === "starting" ? STARTING_POSITIONS[b.index] : BENCH_POSITIONS[b.index];
+  listA[a.index] = { ...playerB, pos: slotPosA };
+  listB[b.index] = { ...playerA, pos: slotPosB };
+}
+
+function isSquadValid() {
+  const team = TEAMS[state.playerTeamId];
+  if (!team) return false;
+  const gkIndex = STARTING_POSITIONS.indexOf("ВРТ");
+  const gkSlot = team.starting[gkIndex];
+  return gkSlot && gkSlot.pos === "ВРТ" && gkSlot.name;
+}
+
+/* ------------------------- ХЕЛПЕРЫ ------------------------- */
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function pickRandomArray(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function randomAttackerName(team) {
+  const offensivePos = ["ЛВ","НАП","ПВ","ЦАП","ЦП"];
+  const list = team.starting.filter(p => offensivePos.includes(p.pos));
+  return pickRandom(list.length ? list : team.starting).name;
+}
+
+function randomAssistName(team, excludeName) {
+  const offensivePos = ["ЛВ","НАП","ПВ","ЦАП","ЦП","ЛЗ","ПЗ"];
+  const list = team.starting.filter(p => offensivePos.includes(p.pos) && p.name !== excludeName);
+  const fallback = team.starting.filter(p => p.name !== excludeName);
+  return pickRandom(list.length ? list : (fallback.length ? fallback : team.starting)).name;
+}
+
+function randomKeeperName(team) {
+  const gk = team.starting.find(p => p.pos === "ВРТ");
+  return gk ? gk.name : "вратарь";
+}
+
+function avgAttackRating(starting) {
+  const offensivePos = ["ЛВ","НАП","ПВ","ЦАП","ЦП"];
+  const players = starting.filter(p => offensivePos.includes(p.pos));
+  if (!players.length) return 80;
+  return players.reduce((s, p) => s + p.rating, 0) / players.length;
+}
+
+function avgDefenseRating(starting) {
+  const defPos = ["ЛЗ","ЦЗ","ПЗ","ВРТ"];
+  const players = starting.filter(p => defPos.includes(p.pos));
+  if (!players.length) return 80;
+  return players.reduce((s, p) => s + p.rating, 0) / players.length;
+}
+
+function goalChance(attackerStart, defenderStart, atkTactic, defTactic) {
+  const atk = avgAttackRating(attackerStart);
+  const def = avgDefenseRating(defenderStart);
+  const diff = atk - def;
+  let chance = 0.35 + diff * 0.035;
+  chance *= tacticMultiplier(atkTactic);
+  chance *= tacticMultiplier(defTactic);
+  return Math.max(0.05, Math.min(0.90, chance));
+}
+
+function registerGoalForScorers(scorerName, teamName) {
+  if (!state.tournament) return;
+  const key = scorerName;
+  if (!state.tournament.scorers[key]) {
+    state.tournament.scorers[key] = { goals: 0, team: teamName };
+  }
+  state.tournament.scorers[key].goals++;
+}
+
+/* ------------------------- МАТЧ ------------------------- */
+function getOpponentTeam() {
+  const others = ALL_TEAM_IDS.filter(id => id !== state.playerTeamId);
+  return TEAMS[pickRandomArray(others)];
+}
+
+function startMatch() {
+  const oppTeam = getOpponentTeam();
+  startMatchWithOpponent(oppTeam.id, { isTournament: false, stage: null });
+}
+
+function startMatchWithOpponent(opponentId, opts = {}) {
+  if (!isSquadValid()) {
+    showError("Нельзя начать матч: на позиции ВРТ нет вратаря!");
+    return;
+  }
+
+  const playerTeam = TEAMS[state.playerTeamId];
+  const oppTeam = TEAMS[opponentId];
+
+  state.match = {
+    home: {
+      team: playerTeam,
+      isPlayer: true,
+      score: 0,
+      tactic: state.tactic,
+      pausesLeft: MATCH_CONFIG.pausesPerMatch,
+      subsLeft: MATCH_CONFIG.maxSubs,
+      starting: playerTeam.starting.map(p => ({ ...p })),
+      bench: playerTeam.bench.map(p => ({ ...p }))
+    },
+    away: {
+      team: oppTeam,
+      isPlayer: false,
+      score: 0,
+      tactic: "balance",
+      starting: oppTeam.starting.map(p => ({ ...p })),
+      bench: oppTeam.bench.map(p => ({ ...p }))
+    },
+    minute: 0,
+    maxMinute: MATCH_CONFIG.gameMinutes,
+    attacks: generateAttacks(),
+    finished: false,
+    timerId: null,
+    events: [],
+    isTournament: !!opts.isTournament,
+    tournamentStage: opts.stage || null,
+    paused: false,
+    halfTimeDone: false,
+    // Темп: 90 минут за 120 реальных секунд (без пауз) = 1.333 сек на минуту
+    msPerMinute: (MATCH_CONFIG.realDuration * 1000) / MATCH_CONFIG.gameMinutes
+  };
+
+  document.getElementById("score-home-name").textContent = playerTeam.name;
+  document.getElementById("score-away-name").textContent = oppTeam.name;
+  document.getElementById("score-numbers").textContent = "0 : 0";
+  document.getElementById("match-timer").textContent = "0'";
+  document.getElementById("commentary-log").innerHTML = "";
+  document.getElementById("match-footer").innerHTML = "";
+  document.getElementById("pitch-message").textContent = "Матч начинается...";
+
+  updateMatchInfo();
+  document.getElementById("btn-pause").disabled = false;
+
+  showScreen("screen-match");
+  state.match.timerId = setInterval(tickMatch, state.match.msPerMinute);
+}
+
+function updateMatchInfo() {
+  const m = state.match;
+  if (!m) return;
+  const infoPauses = document.getElementById("info-pauses");
+  const infoSubs = document.getElementById("info-subs");
+  const infoTactic = document.getElementById("info-tactic");
+  if (infoPauses) infoPauses.textContent = `${m.home.pausesLeft}/3`;
+  if (infoSubs) infoSubs.textContent = `${m.home.subsUsed || 0}/${MATCH_CONFIG.maxSubs}`;
+  if (infoTactic) infoTactic.textContent = TACTIC_LABELS[m.home.tactic];
+}
+
+function generateAttacks() {
+  const minutes = [];
+  const used = new Set();
+  while (minutes.length < 10) {
+    const m = Math.floor(Math.random() * 85) + 5;
+    if (!used.has(m)) { used.add(m); minutes.push(m); }
+  }
+  minutes.sort((a, b) => a - b);
+
+  const attacks = [];
+  const owners = ["home","home","home","home","home","away","away","away","away","away"];
+  for (let i = owners.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [owners[i], owners[j]] = [owners[j], owners[i]];
+  }
+  for (let i = 0; i < 10; i++) {
+    attacks.push({ minute: minutes[i], owner: owners[i], played: false });
+  }
+  return attacks;
+}
+
+function tickMatch() {
+  const match = state.match;
+  if (!match || match.finished || match.paused) return;
+
+  match.minute++;
+
+  // Перерыв на 45'
+  if (match.minute === MATCH_CONFIG.halfTimeMinute && !match.halfTimeDone) {
+    match.halfTimeDone = true;
+    openHalfTime();
+    return;
+  }
+
+  document.getElementById("match-timer").textContent = match.minute + "'";
+
+  match.attacks.forEach(atk => {
+    if (!atk.played && atk.minute === match.minute) {
+      atk.played = true;
+      resolveAttack(atk.owner);
+    }
+  });
+
+  if (match.minute >= match.maxMinute) finishMatch();
+}
+
+function resolveAttack(owner) {
+  const match = state.match;
+  const attacker = owner === "home" ? match.home : match.away;
+  const defender = owner === "home" ? match.away : match.home;
+
+  const chance = goalChance(
+    attacker.starting,
+    defender.starting,
+    attacker.tactic,
+    defender.tactic
+  );
+  const isGoal = Math.random() < chance;
+  const minute = match.minute;
+
+  const scorerName = randomAttackerName(attacker);
+  const assistName = randomAssistName(attacker, scorerName);
+
+  if (isGoal) {
+    attacker.score++;
+    match.events.push({
+      minute,
+      team: attacker.team.name,
+      isPlayerTeam: attacker.isPlayer,
+      scorer: scorerName,
+      assist: assistName
+    });
+    registerGoalForScorers(scorerName, attacker.team.name);
+  }
+
+  document.getElementById("score-numbers").textContent =
+    match.home.score + " : " + match.away.score;
+
+  const commentary = buildCommentary({
+    isGoal, owner,
+    attackerTeam: attacker.team,
+    defenderTeam: defender.team,
+    isPlayerAttacking: attacker.isPlayer,
+    scorerName, assistName
+  });
+
+  addComment(minute, commentary, isGoal);
+  updatePitchMessage(commentary, isGoal, attacker.isPlayer);
+}
+
+/* ------------------------- КОММЕНТАРИИ ------------------------- */
+const PLAYER_GOAL_TEMPLATES = [
+  "{att} получает мяч на границе штрафной, убирает защитника на замахе и низом пробивает в дальний угол — вратарь бессилен! ГОООЛ!",
+  "Быстрая атака! {att} врывается в штрафную и хладнокровно переигрывает {gk} — мяч в сетке!",
+  "{att} бьёт с линии штрафной — рикошет от защитника, и мяч залетает в ворота! Какой гол!",
+  "Подача с фланга, {att} выигрывает воздух и головой вколачивает мяч в ворота! ГОООЛ!",
+  "Шикарная комбинация! {att} получает пас вразрез, выходит один на один и не оставляет {gk} шансов!",
+  "{att} смещается с фланга в центр и пушечным ударом в девятку пробивает {gk}! Красота!",
+  "Пенальти! {att} хладнокровно разводит мяч и вратаря по разным углам — ГОООЛ!",
+  "Стандарт! {att} точно закручивает мяч в дальний угол — {gk} только провожает его взглядом!",
+  "Контратака 3 в 2! {att} отдаёт передачу, получает обратно и вколачивает мяч под перекладину!",
+  "{att} перехватывает мяч в центре поля, обыгрывает двоих и мощно пробивает — гол!",
+  "Ошибка обороны! {att} пользуется провалом в защите и спокойно отправляет мяч в сетку!",
+  "Дальний удар {att}! Мяч летит точно в цель — {gk} бессилен! Что за гол!",
+  "{att} играет на добивании! Первый удар отбил {gk}, но со второго попытки мяч в воротах!"
+];
+
+const PLAYER_MISS_TEMPLATES = [
+  "Опаснейший прострел с фланга, но {att} в последний момент не дотянулся до мяча — судьба хранит ворота соперника!",
+  "{att} бьёт в упор, но {gk} творит чудо — мяч переведён на угловой!",
+  "Удар {att} проходит в сантиметрах от штанги — трибуны ахнули!",
+  "{att} выходит один на один, но {gk} вовремя сокращает угол и блокирует удар!",
+  "Штанга спасает соперника! После удара {att} мяч сотрясает каркас ворот!",
+  "{att} бьёт головой, но {gk} реагирует молниеносно и переводит мяч на угловой!",
+  "Перекладина! {att} не верит своим глазам — судьба сегодня на стороне соперника!",
+  "{att} пробивает со штрафного — мяч летит выше ворот!",
+  "Отличный пас, но {att} замешкался и защитник в подкате выбил мяч!",
+  "{att} пытается перебросить {gk}, но мяч попадает прямо в руки вратарю!",
+  "Прострел {att} перехватывает защитник — опасный момент упущен!",
+  "{att} бьёт, но {gk} ногой отбивает мяч — невероятный сейв!",
+  "Мяч после удара {att} проходит рядом со штангой — совсем немного не хватило!"
+];
+
+const BOT_GOAL_TEMPLATES = [
+  "Быстрая контратака соперника завершается точным ударом {att} в девятку — ваш {gk} только провожал мяч взглядом.",
+  "{att} получает мяч в штрафной, разворачивается и низом пробивает точно в угол — гол в ваши ворота.",
+  "Ошибка в вашей обороне! {att} пользуется этим и вколачивает мяч под перекладину.",
+  "Подача с фланга — {att} выигрывает верховую дуэль и головой отправляет мяч в сетку.",
+  "Опаснейший удар! {att} бьёт с линии штрафной — мяч рикошетом от штанги залетает в ворота.",
+  "Соперник разыгрывает штрафной — {att} точно закручивает мяч в дальний угол, {gk} не дотягивается!",
+  "{att} врывается в штрафную и переигрывает вашего вратаря — гол!",
+  "Провал в центре обороны! {att} выходит один на один и хладнокровно переигрывает {gk}.",
+  "Пушечный удар {att} с дальней дистанции — мяч вонзается точно в девятку!",
+  "Соперник перехватывает мяч и убегает в контратаку — {att} завершает её точным ударом!",
+  "{att} обыгрывает защитника и бьёт в ближний угол — ваш {gk} не успевает среагировать!",
+  "Навес в штрафную, {att} опережает вашего защитника и вколачивает мяч в ворота!"
+];
+
+const BOT_MISS_TEMPLATES = [
+  "Ваш вратарь творит чудо! Реакция в миллисекунды — мяч переведён через перекладину.",
+  "{att} бьёт с выгодной позиции, но ваш {gk} уверенно ловит мяч в руки!",
+  "Удар {att} проходит рядом со штангой — ваши ворота спасены!",
+  "{att} выходит один на один, но ваш {gk} вовремя выходит из ворот и блокирует удар!",
+  "Перекладина спасает вашу команду! {att} не верит своим глазам!",
+  "Ваш защитник в подкате выбивает мяч из-под ног {att} — отличная игра в обороне!",
+  "{att} бьёт головой, но ваш {gk} реагирует молниеносно и переводит мяч на угловой!",
+  "Промах! {att} бьёт мимо ворот — мяч уходит на трибуны!",
+  "{att} пытается перебросить вашего вратаря, но {gk} спокойно забирает мяч!",
+  "Ваш защитник блокирует удар {att} в последний момент — мяч уходит на угловой!",
+  "{att} бьёт со штрафного — мяч пролетает выше ворот!",
+  "Ваш вратарь ногой отбивает мяч после удара {att} — невероятный сейв!",
+  "{att} врывается в штрафную, но ваши защитники успевают выбить мяч в подкате!"
+];
+
+function fillTemplate(tpl, ctx) {
+  return tpl.replace(/{att}/g, ctx.attacker).replace(/{gk}/g, ctx.keeper);
+}
+
+function buildCommentary({ isGoal, attackerTeam, defenderTeam, isPlayerAttacking, scorerName, assistName }) {
+  const attacker = scorerName || randomAttackerName(attackerTeam);
+  const keeper = randomKeeperName(defenderTeam);
+  const ctx = { attacker, keeper };
+
+  if (isPlayerAttacking) {
+    if (isGoal) {
+      let base = fillTemplate(pickRandom(PLAYER_GOAL_TEMPLATES), ctx);
+      if (assistName && Math.random() < 0.6) base += ` Ассист — ${assistName}.`;
+      return base;
+    }
+    return fillTemplate(pickRandom(PLAYER_MISS_TEMPLATES), ctx);
+  } else {
+    if (isGoal) {
+      let base = fillTemplate(pickRandom(BOT_GOAL_TEMPLATES), ctx);
+      if (assistName && Math.random() < 0.6) base += ` Ассист — ${assistName}.`;
+      return base;
+    }
+    return fillTemplate(pickRandom(BOT_MISS_TEMPLATES), ctx);
+  }
+}
+
+function addComment(minute, text, isGoal, customClass) {
+  const log = document.getElementById("commentary-log");
+  const item = document.createElement("div");
+  let cls = "comment-item ";
+  if (customClass) cls += customClass;
+  else cls += (isGoal ? "goal" : "save");
+  item.className = cls;
+  item.innerHTML = `<span class="minute">${minute}'</span>${text}`;
+  log.appendChild(item);
+  log.scrollTop = log.scrollHeight;
+}
+
+function updatePitchMessage(text, isGoal, isPlayerAttacking) {
+  const el = document.getElementById("pitch-message");
+  const color = isGoal
+    ? (isPlayerAttacking ? "#febe10" : "#ef4444")
+    : (isPlayerAttacking ? "#4ade80" : "#93c5fd");
+  el.style.color = color;
+  el.textContent = text;
+}
+
+/* =========================================================================
+   ПАУЗА / ЗАМЕНЫ / ТАКТИКА ВО ВРЕМЯ МАТЧА
+   ========================================================================= */
+
+function openPause() {
+  const m = state.match;
+  if (!m || m.finished) return;
+  if (m.paused) return;
+
+  if (m.home.pausesLeft <= 0) {
+    showError("Остановки закончились!");
+    return;
+  }
+
+  m.paused = true;
+  m.home.pausesLeft--;
+
+  state.pauseState = {
+    type: "pause",           // 'pause' | 'halftime'
+    secondsLeft: MATCH_CONFIG.pauseDuration,
+    timerId: null,
+    selected: null,          // {list:'starting'|'bench', index:number}
+    home: m.home,
+    pendingTactic: m.home.tactic
+  };
+
+  document.getElementById("pause-title").textContent =
+    m.home.pausesLeft >= 0 ? `⏸ Остановка матча` : "⏸ Перерыв";
+  document.getElementById("pause-info-pauses").textContent = `${m.home.pausesLeft}/3`;
+  document.getElementById("pause-info-subs").textContent = `${m.home.subsUsed || 0}/${MATCH_CONFIG.maxSubs}`;
+  document.getElementById("pause-info-minute").textContent = m.minute + "'";
+
+  updatePauseTacticButtons();
+  renderPauseLists();
+  startPauseTimer();
+  document.getElementById("pause-overlay").classList.add("active");
+}
+
+function openHalfTime() {
+  const m = state.match;
+  if (!m || m.finished) return;
+
+  m.paused = true;
+  // Перерыв не тратит остановку
+  state.pauseState = {
+    type: "halftime",
+    secondsLeft: MATCH_CONFIG.halfTimeDuration,
+    timerId: null,
+    selected: null,
+    home: m.home,
+    pendingTactic: m.home.tactic
+  };
+
+  document.getElementById("pause-title").textContent = "⏸ ПЕРЕРЫВ (45')";
+  document.getElementById("pause-info-pauses").textContent = `${m.home.pausesLeft}/3`;
+  document.getElementById("pause-info-subs").textContent = `${m.home.subsUsed || 0}/${MATCH_CONFIG.maxSubs}`;
+  document.getElementById("pause-info-minute").textContent = "45'";
+
+  addComment(45, "Свисток на перерыв! У тренеров есть 10 секунд, чтобы внести изменения.", false, "info");
+
+  updatePauseTacticButtons();
+  renderPauseLists();
+  startPauseTimer();
+  document.getElementById("pause-overlay").classList.add("active");
+}
+
+function startPauseTimer() {
+  const ps = state.pauseState;
+  if (!ps) return;
+
+  const el = document.getElementById("pause-timer");
+  el.textContent = ps.secondsLeft;
+
+  ps.timerId = setInterval(() => {
+    ps.secondsLeft--;
+    el.textContent = ps.secondsLeft;
+    if (ps.secondsLeft <= 0) {
+      closePause();
+    }
+  }, 1000);
+}
+
+function closePause() {
+  const ps = state.pauseState;
+  if (!ps) return;
+  clearInterval(ps.timerId);
+
+  // Применяем отложенную тактику (без записи в лог)
+  if (ps.pendingTactic && ps.pendingTactic !== ps.home.tactic) {
+    ps.home.tactic = ps.pendingTactic;
+  }
+
+  document.getElementById("pause-overlay").classList.remove("active");
+  state.pauseState = null;
+
+  const m = state.match;
+  if (m) {
+    m.paused = false;
+    updateMatchInfo();
+  }
+}
+
+function updatePauseTacticButtons() {
+  const ps = state.pauseState;
+  if (!ps) return;
+  document.querySelectorAll(".pause-tactic-btn").forEach(b => {
+    b.classList.toggle("active", b.dataset.tactic === ps.pendingTactic);
+  });
+}
+
+function pauseSetTactic(tactic) {
+  const ps = state.pauseState;
+  if (!ps) return;
+  ps.pendingTactic = tactic;
+  updatePauseTacticButtons();
+}
+
+function renderPauseLists() {
+  const ps = state.pauseState;
+  if (!ps) return;
+
+  const startList = document.getElementById("pause-starting");
+  const benchList = document.getElementById("pause-bench");
+  startList.innerHTML = "";
+  benchList.innerHTML = "";
+
+  ps.home.starting.forEach((p, i) => {
+    const el = buildPausePlayerCard(p, "starting", i);
+    startList.appendChild(el);
+  });
+  ps.home.bench.forEach((p, i) => {
+    const el = buildPausePlayerCard(p, "bench", i);
+    benchList.appendChild(el);
+  });
+}
+
+function buildPausePlayerCard(player, listName, index) {
+  const div = document.createElement("div");
+  div.className = "pause-player";
+  const sel = state.pauseState.selected;
+  if (sel && sel.list === listName && sel.index === index) div.classList.add("selected");
+
+  div.innerHTML = `
+    <span class="p-pos">${player.pos}</span>
+    <span class="p-name">${player.name}</span>
+    <span class="p-rating ${ratingClass(player.rating)}">${player.rating}</span>
+  `;
+  div.onclick = () => onPausePlayerClick(listName, index);
+  return div;
+}
+
+function onPausePlayerClick(listName, index) {
+  const ps = state.pauseState;
+  if (!ps) return;
+
+  const sel = ps.selected;
+  if (!sel) {
+    ps.selected = { list: listName, index };
+    renderPauseLists();
+    return;
+  }
+
+  if (sel.list === listName && sel.index === index) {
+    ps.selected = null;
+    renderPauseLists();
+    return;
+  }
+
+  // Разные списки (основа ↔ замены) → ЗАМЕНА
+  if (sel.list !== listName) {
+    if (ps.home.subsUsed >= MATCH_CONFIG.maxSubs) {
+      showError(`Лимит замен: ${MATCH_CONFIG.maxSubs}`);
+      ps.selected = null;
+      renderPauseLists();
+      return;
+    }
+    performSubstitution(sel, { list: listName, index });
+    ps.selected = null;
+    renderPauseLists();
+    return;
+  }
+
+  // Один список → обмен местами (не считается заменой)
+  swapInStartingOrBench(sel, { list: listName, index });
+  ps.selected = null;
+  renderPauseLists();
+}
+
+/**
+ * Замена: игрок основы уходит, игрок из замены выходит на его позицию.
+ * Считается как 1 из 4 замен.
+ */
+function performSubstitution(baseSlot, benchSlot) {
+  const ps = state.pauseState;
+  const home = ps.home;
+
+  // Определяем кто основа, а кто замена
+  let startIdx, benchIdx;
+  if (baseSlot.list === "starting") {
+    startIdx = baseSlot.index;
+    benchIdx = benchSlot.index;
+  } else {
+    startIdx = benchSlot.index;
+    benchIdx = baseSlot.index;
+  }
+
+  const outPlayer = home.starting[startIdx];
+  const inPlayer  = home.bench[benchIdx];
+  const slotPos   = STARTING_POSITIONS[startIdx];
+
+  // Меняем
+  home.starting[startIdx] = { ...inPlayer, pos: slotPos };
+  home.bench[benchIdx] = { ...outPlayer, pos: BENCH_POSITIONS[benchIdx] };
+
+  home.subsUsed = (home.subsUsed || 0) + 1;
+
+  // Комментарий в лог
+  const min = state.match ? state.match.minute : 0;
+  addComment(
+    min,
+    `${inPlayer.name} выходит вместо ${outPlayer.name}.`,
+    false,
+    "sub"
+  );
+
+  document.getElementById("pause-info-subs").textContent = `${home.subsUsed}/${MATCH_CONFIG.maxSubs}`;
+  updateMatchInfo();
+}
+
+/**
+ * Обмен местами внутри основы или внутри замены.
+ * НЕ считается заменой.
+ */
+function swapInStartingOrBench(a, b) {
+  const ps = state.pauseState;
+  const home = ps.home;
+  const list = a.list === "starting" ? home.starting : home.bench;
+  const positions = a.list === "starting" ? STARTING_POSITIONS : BENCH_POSITIONS;
+
+  const playerA = list[a.index];
+  const playerB = list[b.index];
+
+  list[a.index] = { ...playerB, pos: positions[a.index] };
+  list[b.index] = { ...playerA, pos: positions[b.index] };
+
+  const min = state.match ? state.match.minute : 0;
+  addComment(
+    min,
+    `${playerB.name} меняется местами с ${playerA.name}.`,
+    false,
+    "sub"
+  );
+}
+
+/* ------------------------- ЗАВЕРШЕНИЕ МАТЧА ------------------------- */
+function finishMatch() {
+  const match = state.match;
+  if (match.finished) return;
+  match.finished = true;
+  clearInterval(match.timerId);
+
+  document.getElementById("match-timer").textContent = "90'";
+  const btn = document.getElementById("btn-pause");
+  if (btn) btn.disabled = true;
+
+  const isDraw = match.home.score === match.away.score;
+  if (match.isTournament && isDraw) {
+    addComment(90, "Основное время завершено вничью! Судьба матча решится в серии пенальти.", false, "info");
+    setTimeout(() => startPenaltyShootout(), 900);
+    return;
+  }
+
+  let winnerText;
+  let playerWon = false;
+  if (match.home.score > match.away.score) {
+    winnerText = "Победа: " + match.home.team.name + " 🏆";
+    playerWon = match.home.isPlayer;
+  } else if (match.home.score < match.away.score) {
+    winnerText = "Победа: " + match.away.team.name + " 🏆";
+    playerWon = match.away.isPlayer;
+  } else {
+    winnerText = "Ничья 🤝";
+    playerWon = false;
+  }
+
+  if (match.isTournament && state.tournament) {
+    applyTournamentResult(match, playerWon, null);
+  }
+
+  // Записываем итоговые составы обратно в команду игрока (чтобы замены сохранялись)
+  const playerTeam = TEAMS[state.playerTeamId];
+  playerTeam.starting = match.home.starting.map(p => ({ ...p }));
+  playerTeam.bench = match.home.bench.map(p => ({ ...p }));
+
+  renderMatchFooter(winnerText, match);
+}
+
+function applyTournamentResult(match, playerWon, pensScore) {
+  const t = state.tournament;
+  if (!t) return;
+  const pMatch = t.currentPlayerMatch;
+  if (!pMatch) return;
+
+  pMatch.score = { home: match.home.score, away: match.away.score, pens: pensScore };
+  pMatch.winner = playerWon ? match.home.team.id : match.away.team.id;
+  pMatch.played = true;
+
+  if (!playerWon) {
+    t.playerEliminated = true;
+    simulateTournamentRemaining();
+  } else {
+    advancePlayerInBracket();
+  }
+}
+
+/* =========================================================================
+   ЛИГА ЧЕМПИОНОВ
+   ========================================================================= */
+function startTournament() {
+  if (state.tournament && state.tournament.stage !== "finished") {
+    renderTournament();
+    showScreen("screen-tournament");
+    return;
+  }
+
+  const others = ALL_TEAM_IDS.filter(id => id !== state.playerTeamId);
+  if (others.length < 7) {
+    showError("Недостаточно команд для турнира!");
+    return;
+  }
+
+  const shuffled = [...others].sort(() => Math.random() - 0.5);
+  const opponentIds = shuffled.slice(0, 7);
+  const playerId = state.playerTeamId;
+  const all = [playerId, ...opponentIds];
+
+  const qf = [
+    { home: all[0], away: all[1], winner: null, score: null, played: false, isPlayerMatch: true },
+    { home: all[2], away: all[3], winner: null, score: null, played: false, isPlayerMatch: false },
+    { home: all[4], away: all[5], winner: null, score: null, played: false, isPlayerMatch: false },
+    { home: all[6], away: all[7], winner: null, score: null, played: false, isPlayerMatch: false }
+  ];
+
+  qf.forEach(m => {
+    if (!m.isPlayerMatch) {
+      const sim = simulateMatch(m.home, m.away);
+      m.score = sim.score;
+      m.winner = sim.winner;
+      m.played = true;
+    }
+  });
+
+  state.tournament = {
+    stage: "qf",
+    qf,
+    sf: [
+      { home: null, away: null, winner: null, score: null, played: false, isPlayerMatch: false },
+      { home: null, away: null, winner: null, score: null, played: false, isPlayerMatch: false }
+    ],
+    final: { home: null, away: null, winner: null, score: null, played: false, isPlayerMatch: false },
+    scorers: {},
+    champions: null,
+    playerEliminated: false,
+    currentPlayerMatch: qf[0]
+  };
+
+  renderTournament();
+  showScreen("screen-tournament");
+}
+
+function advancePlayerInBracket() {
+  const t = state.tournament;
+  if (!t) return;
+
+  if (t.stage === "qf") {
+    t.sf[0].home = t.qf[0].winner;
+    t.sf[0].away = t.qf[1].winner;
+    t.sf[1].home = t.qf[2].winner;
+    t.sf[1].away = t.qf[3].winner;
+
+    const playerSfIndex = (t.sf[0].home === state.playerTeamId) ? 0 : 1;
+    const otherSfIndex = 1 - playerSfIndex;
+    const otherSf = t.sf[otherSfIndex];
+    if (otherSf.home && otherSf.away && !otherSf.played) {
+      const sim = simulateMatch(otherSf.home, otherSf.away);
+      otherSf.score = sim.score;
+      otherSf.winner = sim.winner;
+      otherSf.played = true;
+    }
+
+    const pSf = t.sf[playerSfIndex];
+    pSf.isPlayerMatch = true;
+    t.currentPlayerMatch = pSf;
+    t.stage = "sf";
+
+  } else if (t.stage === "sf") {
+    t.final.home = t.sf[0].winner;
+    t.final.away = t.sf[1].winner;
+    t.final.isPlayerMatch = true;
+    t.currentPlayerMatch = t.final;
+    t.stage = "final";
+  } else if (t.stage === "final") {
+    t.stage = "finished";
+    t.champions = TEAMS[state.playerTeamId].name;
+  }
+
+  renderTournament();
+}
+
+function simulateTournamentRemaining() {
+  const t = state.tournament;
+
+  if (t.stage === "qf") {
+    t.sf[0].home = t.qf[0].winner;
+    t.sf[0].away = t.qf[1].winner;
+    t.sf[1].home = t.qf[2].winner;
+    t.sf[1].away = t.qf[3].winner;
+
+    t.sf.forEach(sf => {
+      if (sf.home && sf.away) {
+        const sim = simulateMatch(sf.home, sf.away);
+        sf.score = sim.score;
+        sf.winner = sim.winner;
+        sf.played = true;
+      }
+    });
+
+    t.final.home = t.sf[0].winner;
+    t.final.away = t.sf[1].winner;
+    const simF = simulateMatch(t.final.home, t.final.away);
+    t.final.score = simF.score;
+    t.final.winner = simF.winner;
+    t.final.played = true;
+
+    t.champions = TEAMS[t.final.winner].name;
+    t.stage = "finished";
+
+  } else if (t.stage === "sf") {
+    t.final.home = t.sf[0].winner;
+    t.final.away = t.sf[1].winner;
+    const simF = simulateMatch(t.final.home, t.final.away);
+    t.final.score = simF.score;
+    t.final.winner = simF.winner;
+    t.final.played = true;
+
+    t.champions = TEAMS[t.final.winner].name;
+    t.stage = "finished";
+
+  } else if (t.stage === "final") {
+    t.champions = TEAMS[t.final.winner].name;
+    t.stage = "finished";
+  }
+
+  renderTournament();
+}
+
+function simulateMatch(homeId, awayId) {
+  const homeTeam = TEAMS[homeId];
+  const awayTeam = TEAMS[awayId];
+
+  const hChance = goalChance(homeTeam.starting, awayTeam.starting, "balance", "balance");
+  const aChance = goalChance(awayTeam.starting, homeTeam.starting, "balance", "balance");
+
+  let hScore = 0, aScore = 0;
+  for (let i = 0; i < 5; i++) if (Math.random() < hChance) hScore++;
+  for (let i = 0; i < 5; i++) if (Math.random() < aChance) aScore++;
+
+  for (let i = 0; i < hScore; i++) registerGoalForScorers(randomAttackerName(homeTeam), homeTeam.name);
+  for (let i = 0; i < aScore; i++) registerGoalForScorers(randomAttackerName(awayTeam), awayTeam.name);
+
+  let winnerId, pens = null;
+
+  if (hScore > aScore) winnerId = homeId;
+  else if (aScore > hScore) winnerId = awayId;
+  else {
+    const pens_ = simulatePenalties(homeTeam, awayTeam);
+    winnerId = pens_.homeScore > pens_.awayScore ? homeId : awayId;
+    pens = pens_.homeScore + ":" + pens_.awayScore;
+  }
+
+  return { score: { home: hScore, away: aScore, pens }, winner: winnerId };
+}
+
+function simulatePenalties(homeTeam, awayTeam) {
+  const hKeeper = homeTeam.starting.find(p => p.pos === "ВРТ") || { rating: 80 };
+  const aKeeper = awayTeam.starting.find(p => p.pos === "ВРТ") || { rating: 80 };
+  const hShooters = homeTeam.starting.filter(p => p.pos !== "ВРТ").slice(0, 5);
+  const aShooters = awayTeam.starting.filter(p => p.pos !== "ВРТ").slice(0, 5);
+
+  let hScore = 0, aScore = 0;
+  let hShots = 0, aShots = 0;
+  let hIdx = 0, aIdx = 0;
+  let round = 0;
+
+  while (round < 20) {
+    const hShooter = hShooters[hIdx % hShooters.length];
+    const hChance = Math.max(0.55, Math.min(0.92, 0.75 + (hShooter.rating - aKeeper.rating) * 0.02));
+    if (Math.random() < hChance) hScore++;
+    hShots++; hIdx++;
+
+    const aShooter = aShooters[aIdx % aShooters.length];
+    const aChance = Math.max(0.55, Math.min(0.92, 0.75 + (aShooter.rating - hKeeper.rating) * 0.02));
+    if (Math.random() < aChance) aScore++;
+    aShots++; aIdx++;
+
+    round++;
+
+    if (round <= 5) {
+      const hRemaining = 5 - hShots;
+      const aRemaining = 5 - aShots;
+      if (hScore > aScore + aRemaining) break;
+      if (aScore > hScore + hRemaining) break;
+    } else {
+      if (hShots === aShots && hScore !== aScore) break;
+    }
+  }
+
+  return { homeScore: hScore, awayScore: aScore };
+}
+
+function renderTournament() {
+  const t = state.tournament;
+  if (!t) return;
+
+  const bracket = document.getElementById("tournament-bracket");
+  const actionBtn = document.getElementById("tournament-action-btn");
+  const subtitle = document.getElementById("tournament-subtitle");
+
+  let html = "";
+
+  html += `<div class="bracket-round">`;
+  html += `<div class="bracket-round-label">1/4 Финала</div>`;
+  html += `<div class="bracket-matches">`;
+  t.qf.forEach(m => { html += renderBracketMatch(m); });
+  html += `</div></div>`;
+
+  html += `<div class="bracket-round">`;
+  html += `<div class="bracket-round-label">1/2 Финала</div>`;
+  html += `<div class="bracket-matches">`;
+  t.sf.forEach(m => { html += renderBracketMatch(m); });
+  html += `</div></div>`;
+
+  html += `<div class="bracket-round">`;
+  html += `<div class="bracket-round-label">Финал</div>`;
+  html += `<div class="bracket-matches" style="grid-template-columns:1fr">`;
+  html += renderBracketMatch(t.final);
+  html += `</div></div>`;
+
+  if (t.stage === "finished" && t.champions) {
+    html += `<div class="bracket-champion">`;
+    html += `<h3>🏆 Чемпион</h3>`;
+    html += `<div class="champion-name">${t.champions}</div>`;
+    html += `</div>`;
+  }
+
+  bracket.innerHTML = html;
+
+  if (t.stage === "finished") {
+    subtitle.textContent = "Турнир завершён";
+    actionBtn.style.display = "none";
+  } else {
+    const stageNames = { qf: "1/4 финала", sf: "1/2 финала", final: "Финал" };
+    subtitle.textContent = "1/4 → 1/2 → Финал · " + stageNames[t.stage];
+    actionBtn.style.display = "";
+    actionBtn.textContent = "Играть " + stageNames[t.stage].toLowerCase();
+  }
+}
+
+function renderBracketMatch(m) {
+  if (!m.home && !m.away) {
+    return `<div class="bracket-match"><div class="bracket-team" style="opacity:.4">—</div><div class="bracket-score">vs</div><div class="bracket-team" style="opacity:.4">—</div></div>`;
+  }
+
+  const homeTeam = m.home ? TEAMS[m.home] : null;
+  const awayTeam = m.away ? TEAMS[m.away] : null;
+
+  const isCurrent = m === state.tournament.currentPlayerMatch && !m.played;
+  const isPlayer = m.isPlayerMatch || (homeTeam && homeTeam.id === state.playerTeamId) || (awayTeam && awayTeam.id === state.playerTeamId);
+
+  const cls = "bracket-match"
+    + (isPlayer ? " you" : "")
+    + (isCurrent ? " current" : "");
+
+  const homeName = homeTeam ? homeTeam.short : "—";
+  const awayName = awayTeam ? awayTeam.short : "—";
+
+  const homeWin = m.winner && homeTeam && homeTeam.id === m.winner;
+  const awayWin = m.winner && awayTeam && awayTeam.id === m.winner;
+
+  let scoreText = "vs";
+  if (m.played && m.score) {
+    scoreText = m.score.home + ":" + m.score.away;
+    if (m.score.pens) scoreText += `<br><span style="font-size:.7rem">(пен. ${m.score.pens})</span>`;
+  }
+
+  return `<div class="${cls}">
+    <div class="bracket-team ${homeWin ? "win" : (m.played && !homeWin ? "lose" : "")}">${homeName}</div>
+    <div class="bracket-score">${scoreText}</div>
+    <div class="bracket-team ${awayWin ? "win" : (m.played && !awayWin ? "lose" : "")}">${awayName}</div>
+  </div>`;
+}
+
+function tournamentAction() {
+  const t = state.tournament;
+  if (!t || t.stage === "finished") return;
+
+  const pMatch = t.currentPlayerMatch;
+  if (!pMatch || !pMatch.home || !pMatch.away) {
+    showError("Ошибка турнира: соперник не найден.");
+    return;
+  }
+
+  const playerId = state.playerTeamId;
+  const opponentId = pMatch.home === playerId ? pMatch.away : pMatch.home;
+
+  startMatchWithOpponent(opponentId, { isTournament: true, stage: t.stage });
+}
+
+function leaveTournamentToMenu() {
+  if (state.match && state.match.timerId) clearInterval(state.match.timerId);
+  state.match = null;
+  state.penalties = null;
+  refreshMenu();
+  showScreen("screen-menu");
+}
+
+/* =========================================================================
+   ПЕНАЛЬТИ
+   ========================================================================= */
+function startPenaltyShootout() {
+  const match = state.match;
+  if (!match) return;
+
+  state.penalties = {
+    match,
+    homeScore: 0,
+    awayScore: 0,
+    homeShots: [],
+    awayShots: [],
+    round: 1,
+    turn: "home",
+    suddenDeath: false,
+    finished: false,
+    homeShooters: buildShooters(match.home),
+    awayShooters: buildShooters(match.away),
+    homeShooterIndex: 0,
+    awayShooterIndex: 0,
+    homeKeeper: getKeeper(match.home),
+    awayKeeper: getKeeper(match.away)
+  };
+
+  document.getElementById("pens-home-name").textContent = match.home.team.name;
+  document.getElementById("pens-away-name").textContent = match.away.team.name;
+  document.getElementById("pens-stage-label").textContent =
+    (match.tournamentStage === "qf" ? "1/4 финала" :
+     match.tournamentStage === "sf" ? "1/2 финала" : "Финал") +
+    " · ничья " + match.home.score + ":" + match.away.score;
+
+  document.getElementById("pens-home-score").textContent = "0";
+  document.getElementById("pens-away-score").textContent = "0";
+  document.getElementById("pens-log").innerHTML = "";
+  document.getElementById("pens-actions").innerHTML =
+    `<button class="btn" id="pens-shoot-btn" onclick="takePenalty()">Пробить пенальти</button>`;
+
+  renderPenaltyDots();
+  updatePenaltyRoundLabel();
+  showScreen("screen-penalties");
+}
+
+function buildShooters(side) {
+  return side.starting.filter(p => p.pos !== "ВРТ").slice().sort((a, b) => b.rating - a.rating).slice(0, 5);
+}
+
+function getKeeper(side) {
+  const gk = side.starting.find(p => p.pos === "ВРТ");
+  return gk || { name: "вратарь", rating: 80 };
+}
+
+function renderPenaltyDots() {
+  const p = state.penalties;
+  if (!p) return;
+  const container = document.getElementById("pens-dots");
+  container.innerHTML = "";
+  const totalRounds = Math.max(5, p.homeShots.length, p.awayShots.length);
+
+  for (let i = 0; i < totalRounds; i++) {
+    const dot = document.createElement("div");
+    dot.className = "pens-dot";
+    if (i < p.homeShots.length) {
+      dot.classList.add(p.homeShots[i] ? "scored" : "missed");
+      dot.textContent = p.homeShots[i] ? "✓" : "✗";
+    } else if (i === p.homeShots.length && p.turn === "home" && !p.finished) {
+      dot.classList.add("current");
+    }
+    container.appendChild(dot);
+  }
+
+  const sep = document.createElement("div");
+  sep.style.cssText = "width:1px;height:34px;background:rgba(255,255,255,0.25);margin:0 8px;align-self:center";
+  container.appendChild(sep);
+
+  for (let i = 0; i < totalRounds; i++) {
+    const dot = document.createElement("div");
+    dot.className = "pens-dot";
+    if (i < p.awayShots.length) {
+      dot.classList.add(p.awayShots[i] ? "scored" : "missed");
+      dot.textContent = p.awayShots[i] ? "✓" : "✗";
+    } else if (i === p.awayShots.length && p.turn === "away" && !p.finished) {
+      dot.classList.add("current");
+    }
+    container.appendChild(dot);
+  }
+}
+
+function updatePenaltyRoundLabel() {
+  const p = state.penalties;
+  if (!p) return;
+  const label = document.getElementById("pens-round-label");
+  if (p.suddenDeath) label.textContent = "Внезапная смерть";
+  else label.textContent = "Раунд " + p.round + " / 5";
+}
+
+function takePenalty() {
+  const p = state.penalties;
+  if (!p || p.finished) return;
+  if (p.turn !== "home") return;
+
+  const btn = document.getElementById("pens-shoot-btn");
+  if (btn) btn.disabled = true;
+
+  performShot("home");
+
+  if (!p.finished) {
+    setTimeout(() => {
+      performShot("away");
+      if (!p.finished) {
+        advanceRoundIfNeeded();
+        renderPenaltyDots();
+        updatePenaltyRoundLabel();
+        if (btn) btn.disabled = false;
+      }
+    }, 700);
+  }
+}
+
+function performShot(who) {
+  const p = state.penalties;
+  const match = p.match;
+  const isHome = who === "home";
+  const shooterTeam = isHome ? match.home.team : match.away.team;
+  const keeper = isHome ? p.awayKeeper : p.homeKeeper;
+
+  let shooter;
+  if (isHome) shooter = p.homeShooters[p.homeShooterIndex % p.homeShooters.length];
+  else shooter = p.awayShooters[p.awayShooterIndex % p.awayShooters.length];
+
+  const diff = shooter.rating - keeper.rating;
+  let chance = 0.75 + diff * 0.02;
+  chance = Math.max(0.55, Math.min(0.92, chance));
+
+  const scored = Math.random() < chance;
+
+  if (isHome) {
+    p.homeShots.push(scored);
+    if (scored) p.homeScore++;
+    p.homeShooterIndex++;
+  } else {
+    p.awayShots.push(scored);
+    if (scored) p.awayScore++;
+    p.awayShooterIndex++;
+  }
+
+  document.getElementById("pens-home-score").textContent = p.homeScore;
+  document.getElementById("pens-away-score").textContent = p.awayScore;
+
+  addPenaltyLog({ scored, shooter: shooter.name, keeper: keeper.name, teamName: shooterTeam.name });
+
+  checkPenaltyCompletion();
+  renderPenaltyDots();
+
+  if (!p.finished) p.turn = isHome ? "away" : "home";
+}
+
+function advanceRoundIfNeeded() {
+  const p = state.penalties;
+  if (!p || p.finished) return;
+  if (p.homeShots.length === p.awayShots.length) {
+    if (p.homeShots.length >= 5) p.suddenDeath = true;
+    else p.round = p.homeShots.length + 1;
+  }
+  p.turn = "home";
+}
+
+function checkPenaltyCompletion() {
+  const p = state.penalties;
+  if (p.finished) return;
+
+  const h = p.homeScore, a = p.awayScore;
+  const hShots = p.homeShots.length, aShots = p.awayShots.length;
+
+  if (!p.suddenDeath && hShots <= 5 && aShots <= 5) {
+    const hRemaining = 5 - hShots;
+    const aRemaining = 5 - aShots;
+    if (h > a + aRemaining) return finishPenalties(true);
+    if (a > h + hRemaining) return finishPenalties(false);
+  }
+
+  if (p.suddenDeath) {
+    if (hShots === aShots && h !== a) return finishPenalties(h > a);
+  }
+}
+
+function finishPenalties(playerWon) {
+  const p = state.penalties;
+  if (!p) return;
+  p.finished = true;
+
+  const match = p.match;
+  const pensStr = p.homeScore + ":" + p.awayScore;
+
+  applyTournamentResult(match, playerWon, pensStr);
+
+  const winnerName = playerWon ? match.home.team.name : match.away.team.name;
+  const winnerText = "Победа по пенальти: " + winnerName + " 🏆";
+
+  const actions = document.getElementById("pens-actions");
+  const eventsHtml = renderMatchEvents(match.events);
+  const scorersHtml = renderScorersTable(state.tournament.scorers);
+
+  let nextActionsHtml;
+  if (state.tournament) {
+    nextActionsHtml = `<button class="btn" onclick="returnToTournament()">К Лиге Чемпионов</button>
+                       <button class="btn secondary" onclick="leaveTournamentToMenu()">В меню</button>`;
+  } else {
+    nextActionsHtml = `<button class="btn" onclick="backToMenuFromMatch()">Вернуться в меню</button>`;
+  }
+
+  actions.innerHTML = `
+    <div class="final-result" style="width:100%">
+      <h3>Серия пенальти завершена</h3>
+      <div class="final-score">${p.homeScore} : ${p.awayScore} <span style="font-size:1rem;color:#a9c2ae">(пен.)</span></div>
+      <div style="color:#a9c2ae;margin-bottom:6px">Основное время: ${match.home.score} : ${match.away.score}</div>
+      <div style="color:#febe10;margin-bottom:14px">${winnerText}</div>
+
+      <div class="match-report">
+        <h4>Протокол матча (основное время)</h4>
+        ${eventsHtml || `<div style="color:#a9c2ae;font-size:.85rem">Голов в основное время не было.</div>`}
+      </div>
+
+      ${scorersHtml ? `
+      <div class="match-report">
+        <h4>Лучший бомбардир Лиги Чемпионов</h4>
+        ${scorersHtml}
+      </div>` : ""}
+
+      <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:16px">
+        ${nextActionsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function addPenaltyLog({ scored, shooter, keeper, teamName }) {
+  const log = document.getElementById("pens-log");
+  const item = document.createElement("div");
+  item.className = "pens-log-item " + (scored ? "scored" : "missed");
+  const icon = scored ? "⚽" : "❌";
+  const text = scored
+    ? `${icon} <span class="pens-shooter">${shooter}</span> (${teamName}) — забивает! Вратарь ${keeper} не спас.`
+    : `${icon} <span class="pens-shooter">${shooter}</span> (${teamName}) — не забивает! ${keeper} берёт удар!`;
+  item.innerHTML = text;
+  log.appendChild(item);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ------------------------- ФУТЕР МАТЧА ------------------------- */
+function renderMatchFooter(winnerText, match) {
+  const footer = document.getElementById("match-footer");
+  const eventsHtml = renderMatchEvents(match.events);
+  const scorersHtml = state.tournament ? renderScorersTable(state.tournament.scorers) : "";
+
+  let actionsHtml;
+  if (match.isTournament && state.tournament) {
+    actionsHtml = `<button class="btn" onclick="returnToTournament()">К Лиге Чемпионов</button>
+                   <button class="btn secondary" onclick="leaveTournamentToMenu()">В меню</button>`;
+  } else {
+    actionsHtml = `<button class="btn" onclick="backToMenuFromMatch()">Вернуться в меню</button>`;
+  }
+
+  footer.innerHTML = `
+    <div class="final-result">
+      <h3>Матч завершён</h3>
+      <div class="final-score">${match.home.score} : ${match.away.score}</div>
+      <div style="color:#a9c2ae;margin-bottom:14px">${winnerText}</div>
+
+      <div class="match-report">
+        <h4>Протокол матча</h4>
+        ${eventsHtml || `<div style="color:#a9c2ae;font-size:.85rem">Голов в матче не было.</div>`}
+      </div>
+
+      ${scorersHtml ? `
+      <div class="match-report">
+        <h4>Лучший бомбардир Лиги Чемпионов</h4>
+        ${scorersHtml}
+      </div>` : ""}
+
+      <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:16px">
+        ${actionsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function renderMatchEvents(events) {
+  if (!events || !events.length) return "";
+  return events.map(e => `
+    <div class="report-line">
+      <span class="report-minute">${e.minute}'</span>
+      <span class="report-goal-team">⚽ ${e.scorer} (${e.team})</span>
+      <span class="report-assist">· ассист: ${e.assist}</span>
+    </div>
+  `).join("");
+}
+
+function renderScorersTable(scorers) {
+  if (!scorers) return "";
+  const arr = Object.entries(scorers).map(([name, info]) => ({ name, goals: info.goals, team: info.team }));
+  if (!arr.length) return `<div style="color:#a9c2ae;font-size:.85rem">Пока никто не забил.</div>`;
+  arr.sort((a, b) => b.goals - a.goals);
+  const rows = arr.slice(0, 5).map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td style="color:#a9c2ae">${s.team}</td>
+      <td style="text-align:right"><b>${s.goals}</b></td>
+    </tr>
+  `).join("");
+  return `
+    <table class="scorers-table">
+      <thead>
+        <tr><th>Игрок</th><th>Клуб</th><th style="text-align:right">Голы</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function returnToTournament() {
+  if (state.match && state.match.timerId) clearInterval(state.match.timerId);
+  state.match = null;
+  state.penalties = null;
+  renderTournament();
+  showScreen("screen-tournament");
+}
+
+function backToMenuFromMatch() {
+  if (state.match && state.match.timerId) clearInterval(state.match.timerId);
+  state.match = null;
+  state.tournament = null;
+  state.penalties = null;
+  refreshMenu();
+  showScreen("screen-menu");
+}
+
+/* ------------------------- ИНИЦИАЛИЗАЦИЯ ------------------------- */
+const _showScreen = showScreen;
+showScreen = function(id) {
+  _showScreen(id);
+  if (id === "screen-squad" && state.playerTeamId) {
+    state.selectedPlayer = null;
+    renderSquad();
+  }
+  if (id === "screen-menu" && state.playerTeamId) refreshMenu();
+  if (id === "screen-tactic") updateTacticUI();
+};
+
+renderTeamSelect();
+</script>
+</body>
+  </html>
