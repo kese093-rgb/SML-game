@@ -1,0 +1,2237 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SML GAME — Футбольный симулятор</title>
+<style>
+  /* ===================== БАЗОВЫЕ СТИЛИ ===================== */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #0b1a12;
+    --bg-mid: #10321f;
+    --bg-grass: #1a4d2e;
+    --line-color: rgba(255,255,255,0.12);
+    --gold: #febe10;
+    --barca-blue: #004d98;
+    --barca-red: #a50044;
+    --real-white: #ffffff;
+    --real-gold: #febe10;
+    --text: #eef5ef;
+    --text-dim: #a9c2ae;
+    --green-rating: #4ade80;
+    --gray-rating: #9ca3af;
+  }
+
+  html, body {
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 50% -10%, #1e5a37 0%, transparent 55%),
+      linear-gradient(180deg, var(--bg-mid) 0%, var(--bg-deep) 100%);
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(90deg, var(--line-color) 1px, transparent 1px),
+      linear-gradient(0deg, var(--line-color) 1px, transparent 1px);
+    background-size: 80px 80px;
+    opacity: 0.35;
+    z-index: 0;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    left: 50%;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--line-color);
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .screen {
+    display: none;
+    position: relative;
+    z-index: 1;
+    padding: 24px 16px 40px;
+    min-height: 100vh;
+    animation: fadeIn .4s ease;
+  }
+
+  .screen.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ===================== ОБЩИЕ ЭЛЕМЕНТЫ ===================== */
+  .title-main {
+    font-size: clamp(2.4rem, 8vw, 4.5rem);
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-align: center;
+    text-transform: uppercase;
+    background: linear-gradient(180deg, #ffffff 0%, #7dd3a1 60%, #3a8b5f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 4px 30px rgba(125,211,161,0.35);
+    margin-bottom: 8px;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--text-dim);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    font-size: .85rem;
+    margin-bottom: 40px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 14px 26px;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: transform .15s ease, box-shadow .25s ease, background .25s;
+    background: linear-gradient(180deg, #2b7a4b 0%, #1d5a37 100%);
+    color: #fff;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    text-transform: uppercase;
+  }
+
+  .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(74,222,128,0.35), 0 0 0 2px rgba(74,222,128,0.4) inset;
+  }
+
+  .btn:active { transform: translateY(0); }
+
+  .btn.secondary {
+    background: transparent;
+    border: 2px solid rgba(255,255,255,0.25);
+    color: var(--text);
+  }
+
+  .btn.secondary:hover {
+    border-color: rgba(74,222,128,0.6);
+    box-shadow: 0 0 20px rgba(74,222,128,0.25);
+  }
+
+  /* ===================== ЭКРАН ВЫБОРА КОМАНДЫ ===================== */
+  .team-select {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 640px) {
+    .team-select { grid-template-columns: 1fr; }
+  }
+
+  .team-card {
+    position: relative;
+    padding: 32px 24px;
+    border-radius: 20px;
+    cursor: pointer;
+    overflow: hidden;
+    transition: transform .25s ease, box-shadow .3s ease;
+    border: 2px solid transparent;
+    min-height: 320px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    text-align: left;
+  }
+
+  .team-card:hover {
+    transform: translateY(-6px) scale(1.02);
+  }
+
+  .team-card.barca {
+    background: linear-gradient(135deg, var(--barca-blue) 0%, #001d3d 55%, var(--barca-red) 100%);
+  }
+  .team-card.barca:hover { box-shadow: 0 20px 50px rgba(165,0,68,0.55); }
+
+  .team-card.real {
+    background: linear-gradient(135deg, #f5f5f5 0%, #cfcfcf 60%, var(--real-gold) 100%);
+    color: #111;
+  }
+  .team-card.real:hover { box-shadow: 0 20px 50px rgba(254,190,16,0.55); }
+
+  .team-card.city {
+    background: linear-gradient(135deg, #6cabdd 0%, #1c2c5b 60%, #0e1a3a 100%);
+  }
+  .team-card.city:hover { box-shadow: 0 20px 50px rgba(108,171,221,0.55); }
+
+  .team-card.united {
+    background: linear-gradient(135deg, #da291c 0%, #7a1410 60%, #2b0b0a 100%);
+  }
+  .team-card.united:hover { box-shadow: 0 20px 50px rgba(218,41,28,0.55); }
+
+  .team-card .club-badge {
+    font-size: 3.6rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    line-height: 1;
+  }
+
+  .team-card .club-name {
+    font-size: 1.6rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-top: 6px;
+  }
+
+  .team-card .club-tag {
+    font-size: .8rem;
+    opacity: .8;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  .team-card .club-stars {
+    font-size: 1.2rem;
+    letter-spacing: 4px;
+    margin-top: 16px;
+  }
+
+  /* ===================== ГЛАВНОЕ МЕНЮ ===================== */
+  .menu-wrap {
+    max-width: 560px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .menu-badge {
+    width: 130px;
+    height: 130px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.2rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    border: 4px solid rgba(255,255,255,0.35);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5), inset 0 0 30px rgba(0,0,0,0.35);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  }
+
+  .menu-badge.barca {
+    background: linear-gradient(135deg, var(--barca-blue), var(--barca-red));
+    color: #ffd700;
+  }
+
+  .menu-badge.real {
+    background: linear-gradient(135deg, #ffffff, var(--real-gold));
+    color: #111;
+    text-shadow: none;
+  }
+
+  .menu-badge.city {
+    background: linear-gradient(135deg, #6cabdd, #1c2c5b);
+    color: #ffffff;
+  }
+
+  .menu-badge.united {
+    background: linear-gradient(135deg, #da291c, #7a1410);
+    color: #ffffff;
+  }
+
+  .menu-club-name {
+    font-size: 1.8rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .menu-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin-top: 32px;
+  }
+
+  .menu-actions .btn { width: 100%; }
+
+  /* ===================== ЭКРАН СОСТАВА ===================== */
+  .squad-screen-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  .squad-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .squad-header h2 {
+    font-size: 1.4rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .squad-columns {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 720px) {
+    .squad-columns { grid-template-columns: 1fr; }
+  }
+
+  .squad-column-title {
+    font-size: .9rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    padding-bottom: 8px;
+  }
+
+  .squad-list { display: flex; flex-direction: column; gap: 8px; }
+
+  .player-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    cursor: pointer;
+    transition: all .2s ease;
+    user-select: none;
+  }
+
+  .player-card:hover {
+    background: rgba(74,222,128,0.08);
+    border-color: rgba(74,222,128,0.3);
+    transform: translateX(4px);
+  }
+
+  .player-card.selected {
+    background: rgba(74,222,128,0.2);
+    border-color: var(--green-rating);
+    box-shadow: 0 0 0 2px rgba(74,222,128,0.35), 0 0 20px rgba(74,222,128,0.25);
+    transform: translateX(6px);
+  }
+
+  .player-pos {
+    min-width: 48px;
+    font-weight: 900;
+    font-size: .8rem;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.35);
+    text-align: center;
+    color: #cde8d3;
+  }
+
+  .player-name {
+    flex: 1;
+    font-weight: 600;
+    font-size: .95rem;
+  }
+
+  .player-rating {
+    font-weight: 900;
+    font-size: 1.05rem;
+    min-width: 40px;
+    text-align: center;
+    padding: 2px 8px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.35);
+  }
+
+  .rating-gold   { color: var(--gold);         text-shadow: 0 0 12px rgba(254,190,16,0.6); }
+  .rating-green  { color: var(--green-rating); }
+  .rating-gray   { color: var(--gray-rating); }
+
+  .squad-hint {
+    margin-top: 18px;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.25);
+    font-size: .85rem;
+    color: var(--text-dim);
+    border-left: 3px solid var(--green-rating);
+  }
+
+  /* ===================== ЭКРАН МАТЧА ===================== */
+  .match-screen-inner { max-width: 1000px; margin: 0 auto; }
+
+  .scoreboard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.3));
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 18px 26px;
+    margin-bottom: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+
+  .score-team {
+    font-weight: 900;
+    font-size: 1rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    flex: 1;
+    text-align: center;
+  }
+
+  .score-team.home { text-align: right; }
+  .score-team.away { text-align: left; }
+
+  .score-numbers {
+    font-size: 2.6rem;
+    font-weight: 900;
+    letter-spacing: 4px;
+    padding: 0 16px;
+    color: #fff;
+    text-shadow: 0 0 24px rgba(74,222,128,0.5);
+    white-space: nowrap;
+  }
+
+  .match-timer {
+    text-align: center;
+    font-weight: 900;
+    font-size: 1.3rem;
+    letter-spacing: 3px;
+    color: var(--gold);
+    margin-bottom: 16px;
+  }
+
+  .match-body {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 720px) {
+    .match-body { grid-template-columns: 1fr; }
+  }
+
+  .pitch-view {
+    background: linear-gradient(180deg, #1f6b3f 0%, #144d2c 100%);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    min-height: 300px;
+    position: relative;
+    overflow: hidden;
+    padding: 16px;
+  }
+
+  .pitch-view::before {
+    content: "";
+    position: absolute;
+    inset: 12px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+  }
+
+  .pitch-center-circle {
+    position: absolute;
+    left: 50%; top: 50%;
+    width: 80px; height: 80px;
+    border: 2px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    transform: translate(-50%,-50%);
+  }
+
+  .pitch-message {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 24px;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #fff;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    z-index: 2;
+    background: rgba(0,0,0,0.25);
+  }
+
+  .commentary-log {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 12px;
+    height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: .9rem;
+  }
+
+  .commentary-log::-webkit-scrollbar { width: 8px; }
+  .commentary-log::-webkit-scrollbar-thumb {
+    background: rgba(74,222,128,0.4);
+    border-radius: 4px;
+  }
+
+  .comment-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border-left: 3px solid rgba(255,255,255,0.2);
+    line-height: 1.4;
+    animation: slideIn .35s ease;
+  }
+
+  .comment-item.goal {
+    border-left-color: var(--gold);
+    background: rgba(254,190,16,0.08);
+  }
+
+  .comment-item.save {
+    border-left-color: var(--green-rating);
+    background: rgba(74,222,128,0.06);
+  }
+
+  .comment-item .minute {
+    font-weight: 900;
+    color: var(--gold);
+    margin-right: 6px;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .match-footer {
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .final-result {
+    text-align: center;
+    padding: 20px;
+    margin-top: 12px;
+    background: linear-gradient(180deg, rgba(254,190,16,0.12), rgba(0,0,0,0.4));
+    border: 2px solid rgba(254,190,16,0.4);
+    border-radius: 14px;
+    animation: fadeIn .5s ease;
+    width: 100%;
+  }
+
+  .final-result h3 {
+    font-size: 1.5rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  .final-result .final-score {
+    font-size: 2.4rem;
+    font-weight: 900;
+    letter-spacing: 4px;
+    margin: 8px 0;
+  }
+
+  .match-report {
+    margin-top: 14px;
+    text-align: left;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+
+  .match-report h4 {
+    font-size: .85rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 6px;
+  }
+
+  .match-report .report-line {
+    font-size: .9rem;
+    padding: 5px 0;
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .match-report .report-minute {
+    font-weight: 900;
+    color: var(--gold);
+    min-width: 42px;
+  }
+
+  .match-report .report-goal-team {
+    color: #ffffff;
+  }
+
+  .match-report .report-assist {
+    color: var(--text-dim);
+    font-size: .82rem;
+  }
+
+  .scorers-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85rem;
+  }
+
+  .scorers-table th {
+    text-align: left;
+    font-size: .7rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+
+  .scorers-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .scorers-table tr:first-child td { color: var(--gold); font-weight: 900; }
+
+  .error-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: #b91c1c;
+    color: #fff;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: transform .35s ease;
+    z-index: 1000;
+  }
+  .error-toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* Турнирная сетка */
+  .bracket-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .bracket-stage {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .bracket-match {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    font-weight: 700;
+  }
+
+  .bracket-match .bracket-team {
+    flex: 1;
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  .bracket-match .bracket-vs {
+    color: var(--text-dim);
+    font-size: .8rem;
+    letter-spacing: 2px;
+  }
+
+  .bracket-label {
+    font-size: .75rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .bracket-win { color: var(--gold); }
+  .bracket-loss { color: var(--text-dim); opacity: .65; }
+
+  /* ===================== СЕРИЯ ПЕНАЛЬТИ ===================== */
+
+  .pens-container {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  .pens-title {
+    font-size: clamp(1.6rem,6vw,2.4rem);
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 6px;
+  }
+
+  .pens-subtitle {
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    font-size: .85rem;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .pens-scoreboard {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.55), rgba(0,0,0,0.3));
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+    padding: 16px 24px;
+    margin-bottom: 20px;
+  }
+
+  .pens-score-team {
+    flex: 1;
+    text-align: center;
+  }
+
+  .pens-score-team .pens-team-name {
+    font-size: .8rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .pens-score-team .pens-team-score {
+    font-size: 2.2rem;
+    font-weight: 900;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(254,190,16,0.6);
+  }
+
+  .pens-round {
+    font-size: .8rem;
+    letter-spacing: 2px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    padding: 0 16px;
+  }
+
+  .pens-dots {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+
+  .pens-dot {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: .9rem;
+    border: 2px solid rgba(255,255,255,0.2);
+    background: rgba(0,0,0,0.35);
+    transition: all .3s ease;
+  }
+
+  .pens-dot.scored {
+    background: rgba(74,222,128,0.25);
+    border-color: var(--green-rating);
+    color: var(--green-rating);
+    box-shadow: 0 0 15px rgba(74,222,128,0.5);
+  }
+
+  .pens-dot.missed {
+    background: rgba(239,68,68,0.25);
+    border-color: #ef4444;
+    color: #ef4444;
+    box-shadow: 0 0 15px rgba(239,68,68,0.5);
+  }
+
+  .pens-dot.current {
+    border-color: var(--gold);
+    box-shadow: 0 0 20px rgba(254,190,16,0.6);
+    animation: pulseDot 1s ease-in-out infinite;
+  }
+
+  @keyframes pulseDot {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+  }
+
+  .pens-log {
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    padding: 12px;
+    max-height: 260px;
+    min-height: 120px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: .88rem;
+    text-align: left;
+    margin-bottom: 20px;
+  }
+
+  .pens-log::-webkit-scrollbar { width: 8px; }
+  .pens-log::-webkit-scrollbar-thumb {
+    background: rgba(74,222,128,0.4);
+    border-radius: 4px;
+  }
+
+  .pens-log-item {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.05);
+    border-left: 3px solid rgba(255,255,255,0.2);
+    animation: slideIn .3s ease;
+  }
+
+  .pens-log-item.scored {
+    border-left-color: var(--green-rating);
+    background: rgba(74,222,128,0.08);
+  }
+
+  .pens-log-item.missed {
+    border-left-color: #ef4444;
+    background: rgba(239,68,68,0.08);
+  }
+
+  .pens-log-item .pens-shooter {
+    font-weight: 700;
+  }
+
+  .pens-actions {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== ЭКРАН 1: ВЫБОР КОМАНДЫ ===================== -->
+<div id="screen-team" class="screen active">
+  <h1 class="title-main">SML GAME</h1>
+  <p class="subtitle">Выбери свой клуб</p>
+
+  <div class="team-select">
+    <div class="team-card barca" onclick="selectTeam('barca')">
+      <div>
+        <div class="club-badge">FCB</div>
+        <div class="club-name">Барселона</div>
+        <div class="club-tag">Catalunya · Blaugrana</div>
+      </div>
+      <div class="club-stars">★★★★★</div>
+    </div>
+
+    <div class="team-card real" onclick="selectTeam('real')">
+      <div>
+        <div class="club-badge">RMA</div>
+        <div class="club-name">Реал Мадрид</div>
+        <div class="club-tag">Madrid · Los Blancos</div>
+      </div>
+      <div class="club-stars">★★★★★</div>
+    </div>
+
+    <div class="team-card city" onclick="selectTeam('city')">
+      <div>
+        <div class="club-badge">MCI</div>
+        <div class="club-name">Манчестер Сити</div>
+        <div class="club-tag">Manchester · Citizens</div>
+      </div>
+      <div class="club-stars">★★★★★</div>
+    </div>
+
+    <div class="team-card united" onclick="selectTeam('united')">
+      <div>
+        <div class="club-badge">MUN</div>
+        <div class="club-name">Манчестер Юнайтед</div>
+        <div class="club-tag">Manchester · Red Devils</div>
+      </div>
+      <div class="club-stars">★★★★★</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 2: ГЛАВНОЕ МЕНЮ ===================== -->
+<div id="screen-menu" class="screen">
+  <div class="menu-wrap">
+    <div id="menu-badge" class="menu-badge">?</div>
+    <div id="menu-club-name" class="menu-club-name">—</div>
+    <div class="subtitle" style="margin-bottom:0">Главное меню</div>
+
+    <div class="menu-actions">
+      <button class="btn" onclick="showScreen('screen-squad')">Изменить состав</button>
+      <button class="btn" onclick="startMatch()">Играть матч против бота</button>
+      <button class="btn" onclick="startTournament()">🏆 Турнир</button>
+      <button class="btn secondary" onclick="showScreen('screen-team')">Сменить команду</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 3: СОСТАВ ===================== -->
+<div id="screen-squad" class="screen">
+  <div class="squad-screen-inner">
+    <div class="squad-header">
+      <h2>Состав команды</h2>
+      <button class="btn secondary" onclick="showScreen('screen-menu')">← В меню</button>
+    </div>
+
+    <div class="squad-columns">
+      <div>
+        <div class="squad-column-title">Основной состав (11)</div>
+        <div id="starting-list" class="squad-list"></div>
+      </div>
+      <div>
+        <div class="squad-column-title">Замены (4)</div>
+        <div id="bench-list" class="squad-list"></div>
+      </div>
+    </div>
+
+    <div class="squad-hint">
+      💡 Кликни по игроку основы, затем по игроку из замены — они поменяются местами.
+      Также можно менять двух игроков внутри основы. Позиции сохраняются.
+    </div>
+
+    <div style="margin-top:18px;text-align:center">
+      <button class="btn" onclick="showScreen('screen-menu')">Вернуться в меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 4: МАТЧ ===================== -->
+<div id="screen-match" class="screen">
+  <div class="match-screen-inner">
+    <div class="scoreboard">
+      <div id="score-home-name" class="score-team home">HOME</div>
+      <div id="score-numbers" class="score-numbers">0 : 0</div>
+      <div id="score-away-name" class="score-team away">AWAY</div>
+    </div>
+
+    <div id="match-timer" class="match-timer">0'</div>
+
+    <div class="match-body">
+      <div class="pitch-view">
+        <div class="pitch-center-circle"></div>
+        <div id="pitch-message" class="pitch-message">Матч начинается...</div>
+      </div>
+      <div id="commentary-log" class="commentary-log"></div>
+    </div>
+
+    <div id="match-footer" class="match-footer"></div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 5: ТУРНИР ===================== -->
+<div id="screen-tournament" class="screen">
+  <div class="bracket-wrap">
+    <h1 class="title-main" style="font-size:clamp(1.8rem,6vw,2.8rem)">🏆 Турнир</h1>
+    <p class="subtitle" id="tournament-subtitle">Полуфинал → Финал</p>
+
+    <div id="tournament-bracket"></div>
+
+    <div style="display:flex;flex-direction:column;gap:12px;margin-top:24px">
+      <button id="tournament-action-btn" class="btn" onclick="tournamentAction()">Играть полуфинал</button>
+      <button class="btn secondary" onclick="abandonTournament()">← В меню</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ЭКРАН 6: СЕРИЯ ПЕНАЛЬТИ ===================== -->
+<div id="screen-penalties" class="screen">
+  <div class="pens-container">
+    <h1 class="pens-title">⚽ Серия пенальти</h1>
+    <p class="pens-subtitle" id="pens-stage-label">Полуфинал · ничья в основное время</p>
+
+    <div class="pens-scoreboard">
+      <div class="pens-score-team">
+        <div class="pens-team-name" id="pens-home-name">HOME</div>
+        <div class="pens-team-score" id="pens-home-score">0</div>
+      </div>
+      <div class="pens-round" id="pens-round-label">Раунд 1 / 5</div>
+      <div class="pens-score-team">
+        <div class="pens-team-name" id="pens-away-name">AWAY</div>
+        <div class="pens-team-score" id="pens-away-score">0</div>
+      </div>
+    </div>
+
+    <div class="pens-dots" id="pens-dots"></div>
+
+    <div class="pens-log" id="pens-log"></div>
+
+    <div class="pens-actions" id="pens-actions">
+      <button class="btn" id="pens-shoot-btn" onclick="takePenalty()">Пробить пенальти</button>
+    </div>
+  </div>
+</div>
+
+<div id="error-toast" class="error-toast"></div>
+
+<script>
+/* =========================================================================
+   SML GAME — футбольный симулятор
+   Всё на чистом JS, без зависимостей.
+   ========================================================================= */
+
+/* ------------------------- ДАННЫЕ КОМАНД ------------------------- */
+
+const STARTING_POSITIONS = ["ЛВ","НАП","ПВ","ЦАП","ЦП","ЦП","ЛЗ","ЦЗ","ЦЗ","ПЗ","ВРТ"];
+const BENCH_POSITIONS    = ["НАП","ЦП","ЦЗ","ВРТ"];
+
+const TEAMS = {
+  barca: {
+    id: "barca",
+    name: "Барселона",
+    short: "БАР",
+    badgeText: "FCB",
+    accentClass: "barca",
+    starting: [
+      { pos:"ЛВ",  name:"Ламин Ямаль",           rating:89 },
+      { pos:"НАП", name:"Роберт Левандовски",    rating:87 },
+      { pos:"ПВ",  name:"Рафинья",               rating:88 },
+      { pos:"ЦАП", name:"Дани Ольмо",            rating:86 },
+      { pos:"ЦП",  name:"Педри",                 rating:90 },
+      { pos:"ЦП",  name:"Френки де Йонг",        rating:87 },
+      { pos:"ЛЗ",  name:"Алехандро Бальде",      rating:85 },
+      { pos:"ЦЗ",  name:"Рональд Араухо",        rating:87 },
+      { pos:"ЦЗ",  name:"Пау Кубарси",           rating:86 },
+      { pos:"ПЗ",  name:"Жюль Кунде",            rating:87 },
+      { pos:"ВРТ", name:"Марк-Андре тер Штеген", rating:88 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Ферран Торрес",    rating:84 },
+      { pos:"ЦП",  name:"Гави",             rating:85 },
+      { pos:"ЦЗ",  name:"Иньиго Мартинес",  rating:84 },
+      { pos:"ВРТ", name:"Иньяки Пенья",     rating:80 }
+    ]
+  },
+
+  real: {
+    id: "real",
+    name: "Реал Мадрид",
+    short: "РЕА",
+    badgeText: "RMA",
+    accentClass: "real",
+    starting: [
+      { pos:"ЛВ",  name:"Винисиус Жуниор",        rating:91 },
+      { pos:"НАП", name:"Килиан Мбаппе",          rating:92 },
+      { pos:"ПВ",  name:"Родриго",                rating:88 },
+      { pos:"ЦАП", name:"Джуд Беллингем",         rating:91 },
+      { pos:"ЦП",  name:"Федерико Вальверде",     rating:89 },
+      { pos:"ЦП",  name:"Орельен Чуамени",        rating:87 },
+      { pos:"ЛЗ",  name:"Ферлан Менди",           rating:84 },
+      { pos:"ЦЗ",  name:"Антонио Рюдигер",        rating:87 },
+      { pos:"ЦЗ",  name:"Эдер Милитао",           rating:86 },
+      { pos:"ПЗ",  name:"Дани Карвахаль",         rating:86 },
+      { pos:"ВРТ", name:"Тибо Куртуа",            rating:90 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Эндрик",             rating:82 },
+      { pos:"ЦП",  name:"Эдуардо Камавинга",  rating:85 },
+      { pos:"ЦЗ",  name:"Давид Алаба",        rating:84 },
+      { pos:"ВРТ", name:"Андрей Лунин",       rating:82 }
+    ]
+  },
+
+  city: {
+    id: "city",
+    name: "Манчестер Сити",
+    short: "МС",
+    badgeText: "MCI",
+    accentClass: "city",
+    starting: [
+      { pos:"ЛВ",  name:"Жереми Доку",              rating:86 },
+      { pos:"НАП", name:"Эрлинг Холанд",            rating:92 },
+      { pos:"ПВ",  name:"Фил Фоден",                rating:89 },
+      { pos:"ЦАП", name:"Кевин Де Брёйне",          rating:90 },
+      { pos:"ЦП",  name:"Родри",                    rating:91 },
+      { pos:"ЦП",  name:"Бернарду Силва",           rating:87 },
+      { pos:"ЛЗ",  name:"Йошко Гвардиол",           rating:86 },
+      { pos:"ЦЗ",  name:"Рубен Диаш",               rating:88 },
+      { pos:"ЦЗ",  name:"Джон Стоунз",              rating:86 },
+      { pos:"ПЗ",  name:"Кайл Уокер",               rating:85 },
+      { pos:"ВРТ", name:"Эдерсон",                  rating:88 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Хулиан Альварес",   rating:85 },
+      { pos:"ЦП",  name:"Матео Ковачич",     rating:85 },
+      { pos:"ЦЗ",  name:"Натан Аке",         rating:84 },
+      { pos:"ВРТ", name:"Штефан Ортега",     rating:83 }
+    ]
+  },
+
+  united: {
+    id: "united",
+    name: "Манчестер Юнайтед",
+    short: "МЮ",
+    badgeText: "MUN",
+    accentClass: "united",
+    starting: [
+      { pos:"ЛВ",  name:"Маркус Рэшфорд",       rating:85 },
+      { pos:"НАП", name:"Расмус Хёйлунн",       rating:84 },
+      { pos:"ПВ",  name:"Алехандро Гарначо",    rating:85 },
+      { pos:"ЦАП", name:"Бруну Фернандеш",      rating:89 },
+      { pos:"ЦП",  name:"Кобби Мейну",          rating:85 },
+      { pos:"ЦП",  name:"Каземиро",             rating:85 },
+      { pos:"ЛЗ",  name:"Люк Шоу",              rating:85 },
+      { pos:"ЦЗ",  name:"Лисандро Мартинес",    rating:86 },
+      { pos:"ЦЗ",  name:"Рафаэль Варан",        rating:86 },
+      { pos:"ПЗ",  name:"Диогу Дало",           rating:84 },
+      { pos:"ВРТ", name:"Андре Онана",          rating:85 }
+    ],
+    bench: [
+      { pos:"НАП", name:"Антони",              rating:83 },
+      { pos:"ЦП",  name:"Мэйсон Маунт",        rating:84 },
+      { pos:"ЦЗ",  name:"Гарри Магуайр",       rating:83 },
+      { pos:"ВРТ", name:"Алтай Байындыр",      rating:80 }
+    ]
+  }
+};
+
+const ALL_TEAM_IDS = Object.keys(TEAMS);
+
+/* ------------------------- СОСТОЯНИЕ ИГРЫ ------------------------- */
+
+const state = {
+  playerTeamId: null,
+  selectedPlayer: null,
+  match: null,
+  tournament: null,
+  penalties: null
+};
+
+/* ------------------------- УТИЛИТЫ ЭКРАНОВ ------------------------- */
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  const el = document.getElementById(id);
+  if (el) el.classList.add("active");
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function showError(msg) {
+  const t = document.getElementById("error-toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(showError._tid);
+  showError._tid = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+/* ------------------------- ВЫБОР КОМАНДЫ ------------------------- */
+
+function selectTeam(teamId) {
+  state.playerTeamId = teamId;
+  state.selectedPlayer = null;
+  refreshMenu();
+  showScreen("screen-menu");
+}
+
+function refreshMenu() {
+  const team = TEAMS[state.playerTeamId];
+  const badge = document.getElementById("menu-badge");
+  badge.textContent = team.badgeText;
+  badge.className = "menu-badge " + team.accentClass;
+
+  const nameEl = document.getElementById("menu-club-name");
+  nameEl.textContent = team.name;
+  nameEl.style.color =
+    team.id === "barca"  ? "#ff7bb0" :
+    team.id === "real"   ? "#febe10" :
+    team.id === "city"   ? "#8ec7ee" :
+                            "#ff6b5e";
+}
+
+/* ------------------------- ЭКРАН СОСТАВА ------------------------- */
+
+function ratingClass(r) {
+  if (r >= 90) return "rating-gold";
+  if (r >= 85) return "rating-green";
+  return "rating-gray";
+}
+
+function renderSquad() {
+  const team = TEAMS[state.playerTeamId];
+  const startList = document.getElementById("starting-list");
+  const benchList = document.getElementById("bench-list");
+  startList.innerHTML = "";
+  benchList.innerHTML = "";
+
+  team.starting.forEach((p, i) => {
+    startList.appendChild(buildPlayerCard(p, "starting", i));
+  });
+  team.bench.forEach((p, i) => {
+    benchList.appendChild(buildPlayerCard(p, "bench", i));
+  });
+}
+
+function buildPlayerCard(player, listName, index) {
+  const div = document.createElement("div");
+  div.className = "player-card";
+
+  const sel = state.selectedPlayer;
+  if (sel && sel.list === listName && sel.index === index) {
+    div.classList.add("selected");
+  }
+
+  div.innerHTML = `
+    <span class="player-pos">${player.pos}</span>
+    <span class="player-name">${player.name}</span>
+    <span class="player-rating ${ratingClass(player.rating)}">${player.rating}</span>
+  `;
+  div.onclick = () => onPlayerClick(listName, index);
+  return div;
+}
+
+function onPlayerClick(listName, index) {
+  const sel = state.selectedPlayer;
+
+  if (!sel) {
+    state.selectedPlayer = { list: listName, index };
+    renderSquad();
+    return;
+  }
+
+  if (sel.list === listName && sel.index === index) {
+    state.selectedPlayer = null;
+    renderSquad();
+    return;
+  }
+
+  swapPlayers(sel, { list: listName, index });
+  state.selectedPlayer = null;
+  renderSquad();
+}
+
+function swapPlayers(a, b) {
+  const team = TEAMS[state.playerTeamId];
+
+  const listA = a.list === "starting" ? team.starting : team.bench;
+  const listB = b.list === "starting" ? team.starting : team.bench;
+
+  const playerA = listA[a.index];
+  const playerB = listB[b.index];
+
+  const slotPosA = a.list === "starting"
+      ? STARTING_POSITIONS[a.index]
+      : BENCH_POSITIONS[a.index];
+  const slotPosB = b.list === "starting"
+      ? STARTING_POSITIONS[b.index]
+      : BENCH_POSITIONS[b.index];
+
+  listA[a.index] = { ...playerB, pos: slotPosA };
+  listB[b.index] = { ...playerA, pos: slotPosB };
+}
+
+function isSquadValid() {
+  const team = TEAMS[state.playerTeamId];
+  const gkIndex = STARTING_POSITIONS.indexOf("ВРТ");
+  const gkSlot = team.starting[gkIndex];
+  return gkSlot && gkSlot.pos === "ВРТ" && gkSlot.name;
+}
+
+/* =========================================================================
+   ТУРНИР
+   ========================================================================= */
+
+function startTournament() {
+  const opponentIds = ALL_TEAM_IDS.filter(id => id !== state.playerTeamId);
+  if (opponentIds.length < 2) {
+    showError("Недостаточно команд для турнира!");
+    return;
+  }
+
+  const semiOpponentId = pickRandomArray(opponentIds);
+  const finalOpponentId = pickRandomArray(opponentIds.filter(id => id !== semiOpponentId));
+
+  state.tournament = {
+    stage: "semi",
+    semiOpponentId,
+    finalOpponentId,
+    semiResult: null,
+    finalResult: null,
+    scorers: {},
+    champions: null
+  };
+
+  renderTournament();
+  showScreen("screen-tournament");
+}
+
+function pickRandomArray(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function renderTournament() {
+  const t = state.tournament;
+  if (!t) return;
+
+  const playerTeam = TEAMS[state.playerTeamId];
+  const semiOpp = TEAMS[t.semiOpponentId];
+  const finalOpp = TEAMS[t.finalOpponentId];
+  const bracket = document.getElementById("tournament-bracket");
+  const actionBtn = document.getElementById("tournament-action-btn");
+  const subtitle = document.getElementById("tournament-subtitle");
+
+  let html = "";
+
+  // --- Полуфинал ---
+  html += `<div class="bracket-stage">`;
+  html += `<div class="bracket-label">Полуфинал</div>`;
+  html += `<div class="bracket-match">`;
+  html += `<div class="bracket-team">${playerTeam.name}</div>`;
+  if (t.semiResult) {
+    html += `<div class="bracket-vs">${t.semiResult.homeScore} : ${t.semiResult.awayScore}${t.semiResult.pens ? " (пен. " + t.semiResult.pens + ")" : ""}</div>`;
+  } else {
+    html += `<div class="bracket-vs">vs</div>`;
+  }
+  html += `<div class="bracket-team">${semiOpp.name}</div>`;
+  html += `</div>`;
+  html += `</div>`;
+
+  // --- Финал ---
+  html += `<div class="bracket-stage">`;
+  html += `<div class="bracket-label">Финал</div>`;
+  html += `<div class="bracket-match">`;
+
+  if (t.stage === "semi") {
+    html += `<div class="bracket-team bracket-loss">? победитель</div>`;
+    html += `<div class="bracket-vs">vs</div>`;
+    html += `<div class="bracket-team bracket-loss">? победитель</div>`;
+  } else {
+    const semiWinnerName = t.semiResult && t.semiResult.playerWon
+      ? playerTeam.name
+      : semiOpp.name;
+    html += `<div class="bracket-team">${semiWinnerName}</div>`;
+    if (t.finalResult) {
+      html += `<div class="bracket-vs">${t.finalResult.homeScore} : ${t.finalResult.awayScore}${t.finalResult.pens ? " (пен. " + t.finalResult.pens + ")" : ""}</div>`;
+    } else {
+      html += `<div class="bracket-vs">vs</div>`;
+    }
+    html += `<div class="bracket-team">${finalOpp.name}</div>`;
+  }
+  html += `</div>`;
+  html += `</div>`;
+
+  // --- Итог турнира ---
+  if (t.stage === "finished") {
+    html += `<div class="final-result" style="margin-top:16px">`;
+    html += `<h3>Чемпион турнира</h3>`;
+    html += `<div class="final-score" style="font-size:1.5rem">🏆 ${t.champions}</div>`;
+    html += `</div>`;
+  }
+
+  bracket.innerHTML = html;
+
+  if (t.stage === "semi") {
+    subtitle.textContent = "Полуфинал → Финал";
+    actionBtn.style.display = "";
+    actionBtn.textContent = "Играть полуфинал";
+  } else if (t.stage === "final") {
+    subtitle.textContent = "Финал";
+    actionBtn.style.display = "";
+    actionBtn.textContent = "Играть финал";
+  } else {
+    subtitle.textContent = "Турнир завершён";
+    actionBtn.style.display = "none";
+  }
+}
+
+function tournamentAction() {
+  const t = state.tournament;
+  if (!t) return;
+
+  let opponentId;
+  if (t.stage === "semi") {
+    opponentId = t.semiOpponentId;
+  } else if (t.stage === "final") {
+    opponentId = t.finalOpponentId;
+  } else {
+    return;
+  }
+
+  startMatchWithOpponent(opponentId, { isTournament: true, stage: t.stage });
+}
+
+function abandonTournament() {
+  if (state.match && state.match.timerId) clearInterval(state.match.timerId);
+  state.match = null;
+  state.tournament = null;
+  state.penalties = null;
+  refreshMenu();
+  showScreen("screen-menu");
+}
+
+/* =========================================================================
+   МАТЧ
+   ========================================================================= */
+
+function getOpponentTeam() {
+  const others = ALL_TEAM_IDS.filter(id => id !== state.playerTeamId);
+  return TEAMS[pickRandomArray(others)];
+}
+
+function startMatchWithOpponent(opponentId, opts = {}) {
+  if (!isSquadValid()) {
+    showError("Нельзя начать матч: на позиции ВРТ нет вратаря!");
+    return;
+  }
+
+  const playerTeam = TEAMS[state.playerTeamId];
+  const oppTeam = TEAMS[opponentId];
+
+  state.match = {
+    home: { team: playerTeam, isPlayer: true,  score: 0 },
+    away: { team: oppTeam,    isPlayer: false, score: 0 },
+    minute: 0,
+    maxMinute: 90,
+    attacks: generateAttacks(),
+    attackIndex: 0,
+    finished: false,
+    timerId: null,
+    events: [],
+    isTournament: !!opts.isTournament,
+    tournamentStage: opts.stage || null
+  };
+
+  document.getElementById("score-home-name").textContent = playerTeam.name;
+  document.getElementById("score-away-name").textContent = oppTeam.name;
+  document.getElementById("score-numbers").textContent = "0 : 0";
+  document.getElementById("match-timer").textContent = "0'";
+  document.getElementById("commentary-log").innerHTML = "";
+  document.getElementById("match-footer").innerHTML = "";
+  document.getElementById("pitch-message").textContent = "Матч начинается...";
+
+  showScreen("screen-match");
+
+  state.match.timerId = setInterval(tickMatch, 800);
+}
+
+function startMatch() {
+  const oppTeam = getOpponentTeam();
+  startMatchWithOpponent(oppTeam.id, { isTournament: false });
+}
+
+function generateAttacks() {
+  const minutes = [];
+  const used = new Set();
+  while (minutes.length < 10) {
+    const m = Math.floor(Math.random() * 85) + 5;
+    if (!used.has(m)) {
+      used.add(m);
+      minutes.push(m);
+    }
+  }
+  minutes.sort((a, b) => a - b);
+
+  const attacks = [];
+  const owners = ["home","home","home","home","home","away","away","away","away","away"];
+  for (let i = owners.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [owners[i], owners[j]] = [owners[j], owners[i]];
+  }
+
+  for (let i = 0; i < 10; i++) {
+    attacks.push({ minute: minutes[i], owner: owners[i], played: false });
+  }
+  return attacks;
+}
+
+function tickMatch() {
+  const match = state.match;
+  if (!match || match.finished) return;
+
+  match.minute++;
+  document.getElementById("match-timer").textContent = match.minute + "'";
+
+  match.attacks.forEach(atk => {
+    if (!atk.played && atk.minute === match.minute) {
+      atk.played = true;
+      resolveAttack(atk.owner);
+    }
+  });
+
+  if (match.minute >= match.maxMinute) {
+    finishMatch();
+  }
+}
+
+function avgAttackRating(team, starting) {
+  const offensivePos = ["ЛВ","НАП","ПВ","ЦАП","ЦП"];
+  const players = starting.filter(p => offensivePos.includes(p.pos));
+  if (!players.length) return 80;
+  return players.reduce((s, p) => s + p.rating, 0) / players.length;
+}
+
+function avgDefenseRating(team, starting) {
+  const defPos = ["ЛЗ","ЦЗ","ПЗ","ВРТ"];
+  const players = starting.filter(p => defPos.includes(p.pos));
+  if (!players.length) return 80;
+  return players.reduce((s, p) => s + p.rating, 0) / players.length;
+}
+
+function goalChance(attackerStart, defenderStart) {
+  const atk = avgAttackRating(null, attackerStart);
+  const def = avgDefenseRating(null, defenderStart);
+  const diff = atk - def;
+  let chance = 0.35 + diff * 0.035;
+  return Math.max(0.10, Math.min(0.80, chance));
+}
+
+function resolveAttack(owner) {
+  const match = state.match;
+  const attacker = owner === "home" ? match.home : match.away;
+  const defender = owner === "home" ? match.away : match.home;
+
+  const chance = goalChance(attacker.team.starting, defender.team.starting);
+  const isGoal = Math.random() < chance;
+
+  const minute = match.minute;
+  const scorerName = randomAttackerName(attacker.team);
+  const assistName = randomAssistName(attacker.team, scorerName);
+
+  if (isGoal) {
+    attacker.score++;
+    match.events.push({
+      minute,
+      team: attacker.team.name,
+      isPlayerTeam: attacker.isPlayer,
+      scorer: scorerName,
+      assist: assistName
+    });
+    if (state.tournament) {
+      const key = scorerName;
+      if (!state.tournament.scorers[key]) {
+        state.tournament.scorers[key] = { goals: 0, team: attacker.team.name };
+      }
+      state.tournament.scorers[key].goals++;
+    }
+  }
+
+  document.getElementById("score-numbers").textContent =
+    match.home.score + " : " + match.away.score;
+
+  const commentary = buildCommentary({
+    isGoal,
+    owner,
+    attackerTeam: attacker.team,
+    defenderTeam: defender.team,
+    isPlayerAttacking: attacker.isPlayer,
+    scorerName,
+    assistName
+  });
+
+  addComment(minute, commentary, isGoal);
+  updatePitchMessage(commentary, isGoal, attacker.isPlayer);
+}
+
+/* ------------------------- КОММЕНТАРИИ ------------------------- */
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function randomAttackerName(team) {
+  const offensivePos = ["ЛВ","НАП","ПВ","ЦАП","ЦП"];
+  const list = team.starting.filter(p => offensivePos.includes(p.pos));
+  return pickRandom(list.length ? list : team.starting).name;
+}
+
+function randomAssistName(team, excludeName) {
+  const offensivePos = ["ЛВ","НАП","ПВ","ЦАП","ЦП","ЛЗ","ПЗ"];
+  const list = team.starting.filter(p =>
+    offensivePos.includes(p.pos) && p.name !== excludeName
+  );
+  const fallback = team.starting.filter(p => p.name !== excludeName);
+  return pickRandom(list.length ? list : (fallback.length ? fallback : team.starting)).name;
+}
+
+function randomKeeperName(team) {
+  const gk = team.starting.find(p => p.pos === "ВРТ");
+  return gk ? gk.name : "вратарь";
+}
+
+const PLAYER_GOAL_TEMPLATES = [
+  "{att} получает мяч на границе штрафной, убирает защитника на замахе и низом пробивает в дальний угол — вратарь бессилен! ГОООЛ!",
+  "Быстрая атака! {att} врывается в штрафную и хладнокровно переигрывает {gk} — мяч в сетке!",
+  "{att} бьёт с линии штрафной — рикошет от защитника, и мяч залетает в ворота! Какой гол!",
+  "Подача с фланга, {att} выигрывает воздух и головой вколачивает мяч в ворота! ГОООЛ!",
+  "Шикарная комбинация! {att} получает пас вразрез, выходит один на один и не оставляет {gk} шансов!",
+  "{att} смещается с фланга в центр и пушечным ударом в девятку пробивает {gk}! Красота!",
+  "Пенальти! {att} хладнокровно разводит мяч и вратаря по разным углам — ГОООЛ!",
+  "Стандарт! {att} точно закручивает мяч в дальний угол — {gk} только провожает его взглядом!",
+  "Контратака 3 в 2! {att} отдаёт передачу, получает обратно и вколачивает мяч под перекладину!",
+  "{att} перехватывает мяч в центре поля, обыгрывает двоих и мощно пробивает — гол!",
+  "Ошибка обороны! {att} пользуется провалом в защите и спокойно отправляет мяч в сетку!",
+  "Дальний удар {att}! Мяч летит точно в цель — {gk} бессилен! Что за гол!",
+  "{att} играет на добивании! Первый удар отбил {gk}, но со второго попытки мяч в воротах!"
+];
+
+const PLAYER_MISS_TEMPLATES = [
+  "Опаснейший прострел с фланга, но {att} в последний момент не дотянулся до мяча — судьба хранит ворота соперника!",
+  "{att} бьёт в упор, но {gk} творит чудо — мяч переведён на угловой!",
+  "Удар {att} проходит в сантиметрах от штанги — трибуны ахнули!",
+  "{att} выходит один на один, но {gk} вовремя сокращает угол и блокирует удар!",
+  "Штанга спасает соперника! После удара {att} мяч сотрясает каркас ворот!",
+  "{att} бьёт головой, но {gk} реагирует молниеносно и переводит мяч на угловой!",
+  "Перекладина! {att} не верит своим глазам — судьба сегодня на стороне соперника!",
+  "{att} пробивает со штрафного — мяч летит выше ворот!",
+  "Отличный пас, но {att} замешкался и защитник в подкате выбил мяч!",
+  "{att} пытается перебросить {gk}, но мяч попадает прямо в руки вратарю!",
+  "Прострел {att} перехватывает защитник — опасный момент упущен!",
+  "{att} бьёт, но {gk} ногой отбивает мяч — невероятный сейв!",
+  "Мяч после удара {att} проходит рядом со штангой — совсем немного не хватило!"
+];
+
+const BOT_GOAL_TEMPLATES = [
+  "Быстрая контратака соперника завершается точным ударом {att} в девятку — ваш {gk} только провожал мяч взглядом.",
+  "{att} получает мяч в штрафной, разворачивается и низом пробивает точно в угол — гол в ваши ворота.",
+  "Ошибка в вашей обороне! {att} пользуется этим и вколачивает мяч под перекладину.",
+  "Подача с фланга — {att} выигрывает верховую дуэль и головой отправляет мяч в сетку.",
+  "Опаснейший удар! {att} бьёт с линии штрафной — мяч рикошетом от штанги залетает в ворота.",
+  "Соперник разыгрывает штрафной — {att} точно закручивает мяч в дальний угол, {gk} не дотягивается!",
+  "{att} врывается в штрафную и переигрывает вашего вратаря — гол!",
+  "Провал в центре обороны! {att} выходит один на один и хладнокровно переигрывает {gk}.",
+  "Пушечный удар {att} с дальней дистанции — мяч вонзается точно в девятку!",
+  "Соперник перехватывает мяч и убегает в контратаку — {att} завершает её точным ударом!",
+  "{att} обыгрывает защитника и бьёт в ближний угол — ваш {gk} не успевает среагировать!",
+  "Навес в штрафную, {att} опережает вашего защитника и вколачивает мяч в ворота!"
+];
+
+const BOT_MISS_TEMPLATES = [
+  "Ваш вратарь творит чудо! Реакция в миллисекунды — мяч переведён через перекладину.",
+  "{att} бьёт с выгодной позиции, но ваш {gk} уверенно ловит мяч в руки!",
+  "Удар {att} проходит рядом со штангой — ваши ворота спасены!",
+  "{att} выходит один на один, но ваш {gk} вовремя выходит из ворот и блокирует удар!",
+  "Перекладина спасает вашу команду! {att} не верит своим глазам!",
+  "Ваш защитник в подкате выбивает мяч из-под ног {att} — отличная игра в обороне!",
+  "{att} бьёт головой, но ваш {gk} реагирует молниеносно и переводит мяч на угловой!",
+  "Промах! {att} бьёт мимо ворот — мяч уходит на трибуны!",
+  "{att} пытается перебросить вашего вратаря, но {gk} спокойно забирает мяч!",
+  "Ваш защитник блокирует удар {att} в последний момент — мяч уходит на угловой!",
+  "{att} бьёт со штрафного — мяч пролетает выше ворот!",
+  "Ваш вратарь ногой отбивает мяч после удара {att} — невероятный сейв!",
+  "{att} врывается в штрафную, но ваши защитники успевают выбить мяч в подкате!"
+];
+
+function fillTemplate(tpl, ctx) {
+  return tpl
+    .replace(/{att}/g, ctx.attacker)
+    .replace(/{gk}/g, ctx.keeper);
+}
+
+function buildCommentary({ isGoal, owner, attackerTeam, defenderTeam, isPlayerAttacking, scorerName, assistName }) {
+  const attacker = scorerName || randomAttackerName(attackerTeam);
+  const keeper = randomKeeperName(defenderTeam);
+  const ctx = { attacker, keeper };
+
+  if (isPlayerAttacking) {
+    if (isGoal) {
+      let base = fillTemplate(pickRandom(PLAYER_GOAL_TEMPLATES), ctx);
+      if (assistName && Math.random() < 0.6) {
+        base += ` Ассист — ${assistName}.`;
+      }
+      return base;
+    }
+    return fillTemplate(pickRandom(PLAYER_MISS_TEMPLATES), ctx);
+  } else {
+    if (isGoal) {
+      let base = fillTemplate(pickRandom(BOT_GOAL_TEMPLATES), ctx);
+      if (assistName && Math.random() < 0.6) {
+        base += ` Ассист — ${assistName}.`;
+      }
+      return base;
+    }
+    return fillTemplate(pickRandom(BOT_MISS_TEMPLATES), ctx);
+  }
+}
+
+function addComment(minute, text, isGoal) {
+  const log = document.getElementById("commentary-log");
+  const item = document.createElement("div");
+  item.className = "comment-item " + (isGoal ? "goal" : "save");
+  item.innerHTML = `<span class="minute">${minute}'</span>${text}`;
+  log.appendChild(item);
+  log.scrollTop = log.scrollHeight;
+}
+
+function updatePitchMessage(text, isGoal, isPlayerAttacking) {
+  const el = document.getElementById("pitch-message");
+  const color = isGoal
+    ? (isPlayerAttacking ? "#febe10" : "#ef4444")
+    : (isPlayerAttacking ? "#4ade80" : "#93c5fd");
+  el.style.color = color;
+  el.textContent = text;
+}
+
+/* ------------------------- ЗАВЕРШЕНИЕ МАТЧА ------------------------- */
+
+function finishMatch() {
+  const match = state.match;
+  if (match.finished) return;
+  match.finished = true;
+  clearInterval(match.timerId);
+
+  document.getElementById("match-timer").textContent = "90'";
+
+  // Проверяем: если это турнирный матч и счёт равный — идём на пенальти
+  const isDraw = match.home.score === match.away.score;
+  if (match.isTournament && isDraw) {
+    // Показываем в логе сообщение и запускаем серию пенальти
+    addComment(90, "Основное время завершено вничью! Судьба матча решится в серии пенальти.", false);
+    setTimeout(() => startPenaltyShootout(), 900);
+    return;
+  }
+
+  // Обычный финал матча
+  let winnerText;
+  let playerWon = false;
+  if (match.home.score > match.away.score) {
+    winnerText = "Победа: " + match.home.team.name + " 🏆";
+    playerWon = match.home.isPlayer;
+  } else if (match.home.score < match.away.score) {
+    winnerText = "Победа: " + match.away.team.name + " 🏆";
+    playerWon = match.away.isPlayer;
+  } else {
+    winnerText = "Ничья 🤝";
+    playerWon = false;
+  }
+
+  match.report = {
+    homeScore: match.home.score,
+    awayScore: match.away.score,
+    events: match.events.slice()
+  };
+
+  // Если это турнирный матч (не ничья) — обновляем турнир
+  if (match.isTournament && state.tournament) {
+    applyTournamentResult(match, playerWon, null);
+  }
+
+  renderMatchFooter(winnerText, match);
+}
+
+/** Применяет результат турнирного матча (в т.ч. с пенальти). */
+function applyTournamentResult(match, playerWon, pensScore) {
+  const t = state.tournament;
+  if (!t) return;
+
+  const record = {
+    homeScore: match.home.score,
+    awayScore: match.away.score,
+    playerWon,
+    pens: pensScore || null // строка вида "4:3" или null
+  };
+
+  if (match.tournamentStage === "semi") {
+    t.semiResult = record;
+    if (playerWon) {
+      t.stage = "final";
+    } else {
+      t.stage = "finished";
+      t.champions = match.away.team.name;
+    }
+  } else if (match.tournamentStage === "final") {
+    t.finalResult = record;
+    t.stage = "finished";
+    t.champions = playerWon ? match.home.team.name : match.away.team.name;
+  }
+}
+
+/* =========================================================================
+   СЕРИЯ ПЕНАЛЬТИ
+   ========================================================================= */
+
+/**
+ * Формат: 5 ударов каждой команды по очереди (как в реальном футболе).
+ * Если после 5 раундов ничья — внезапная смерть (по паре ударов),
+ * пока не выявится победитель.
+ * Первым бьёт игрок (home).
+ */
+function startPenaltyShootout() {
+  const match = state.match;
+  if (!match) return;
+
+  state.penalties = {
+    match,
+    homeScore: 0,
+    awayScore: 0,
+    homeShots: [],       // true/false (забил/не забил)
+    awayShots: [],
+    round: 1,
+    turn: "home",        // кто бьёт сейчас
+    suddenDeath: false,
+    finished: false,
+    // Пул бьющих: сначала топ-5 полевых по рейтингу
+    homeShooters: buildShooters(match.home.team),
+    awayShooters: buildShooters(match.away.team),
+    homeShooterIndex: 0,
+    awayShooterIndex: 0,
+    homeKeeper: getKeeper(match.home.team),
+    awayKeeper: getKeeper(match.away.team)
+  };
+
+  // Заголовки
+  document.getElementById("pens-home-name").textContent = match.home.team.name;
+  document.getElementById("pens-away-name").textContent = match.away.team.name;
+  document.getElementById("pens-stage-label").textContent =
+    (match.tournamentStage === "semi" ? "Полуфинал" : "Финал") +
+    " · ничья " + match.home.score + ":" + match.away.score;
+
+  document.getElementById("pens-home-score").textContent = "0";
+  document.getElementById("pens-away-score").textContent = "0";
+  document.getElementById("pens-log").innerHTML = "";
+  document.getElementById("pens-actions").innerHTML =
+    `<button class="btn" id="pens-shoot-btn" onclick="takePenalty()">Пробить пенальти</button>`;
+
+  renderPenaltyDots();
+  updatePenaltyRoundLabel();
+  showScreen("screen-penalties");
+}
+
+/** Составляет список бьющих: топ-5 полевых по рейтингу. */
+function buildShooters(team) {
+  return team.starting
+    .filter(p => p.pos !== "ВРТ")
+    .slice()
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 5);
+}
+
+function getKeeper(team) {
+  const gk = team.starting.find(p => p.pos === "ВРТ");
+  return gk || { name: "вратарь", rating: 80 };
+}
+
+function renderPenaltyDots() {
+  const p = state.penalties;
+  if (!p) return;
+  const container = document.getElementById("pens-dots");
+  container.innerHTML = "";
+
+  // Определяем, сколько ударов рисуем (минимум 5 в каждую сторону)
+  const totalRounds = Math.max(5, p.homeShots.length, p.awayShots.length);
+
+  // HOME dots (слева)
+  for (let i = 0; i < totalRounds; i++) {
+    const dot = document.createElement("div");
+    dot.className = "pens-dot";
+    if (i < p.homeShots.length) {
+      dot.classList.add(p.homeShots[i] ? "scored" : "missed");
+      dot.textContent = p.homeShots[i] ? "✓" : "✗";
+    } else if (i === p.homeShots.length && p.turn === "home" && !p.finished) {
+      dot.classList.add("current");
+    }
+    container.appendChild(dot);
+  }
+
+  // Разделитель
+  const sep = document.createElement("div");
+  sep.style.cssText = "width:1px;height:34px;background:rgba(255,255,255,0.25);margin:0 8px;align-self:center";
+  container.appendChild(sep);
+
+  // AWAY dots (справа)
+  for (let i = 0; i < totalRounds; i++) {
+    const dot = document.createElement("div");
+    dot.className = "pens-dot";
+    if (i < p.awayShots.length) {
+      dot.classList.add(p.awayShots[i] ? "scored" : "missed");
+      dot.textContent = p.awayShots[i] ? "✓" : "✗";
+    } else if (i === p.awayShots.length && p.turn === "away" && !p.finished) {
+      dot.classList.add("current");
+    }
+    container.appendChild(dot);
+  }
+}
+
+function updatePenaltyRoundLabel() {
+  const p = state.penalties;
+  if (!p) return;
+  const label = document.getElementById("pens-round-label");
+  if (p.suddenDeath) {
+    label.textContent = "Внезапная смерть";
+  } else {
+    label.textContent = "Раунд " + p.round + " / 5";
+  }
+}
+
+/** Игрок бьёт (только когда ход игрока). */
+function takePenalty() {
+  const p = state.penalties;
+  if (!p || p.finished) return;
+  if (p.turn !== "home") return; // ждём бота
+
+  performShot("home");
+
+  // Если серия не завершилась — бьёт бот через паузу
+  if (!p.finished) {
+    setTimeout(() => {
+      performShot("away");
+      if (!p.finished) {
+        // готовим следующий раунд
+        advanceRoundIfNeeded();
+        renderPenaltyDots();
+        updatePenaltyRoundLabel();
+      }
+    }, 700);
+  }
+}
+
+/** Общий розыгрыш одного удара. */
+function performShot(who) {
+  const p = state.penalties;
+  const match = p.match;
+
+  const isHome = who === "home";
+  const shooterTeam = isHome ? match.home.team : match.away.team;
+  const keeperTeam  = isHome ? match.away.team : match.home.team;
+  const keeper = isHome ? p.awayKeeper : p.homeKeeper;
+
+  // Выбираем бьющего по кругу из топ-5
+  let shooter;
+  if (isHome) {
+    shooter = p.homeShooters[p.homeShooterIndex % p.homeShooters.length];
+  } else {
+    shooter = p.awayShooters[p.awayShooterIndex % p.awayShooters.length];
+  }
+
+  // Вероятность гола: ~75% базово, корректируется рейтингами
+  const diff = (shooter.rating - keeper.rating);
+  let chance = 0.75 + diff * 0.02;
+  chance = Math.max(0.55, Math.min(0.92, chance));
+
+  const scored = Math.random() < chance;
+
+  if (isHome) {
+    p.homeShots.push(scored);
+    if (scored) p.homeScore++;
+    p.homeShooterIndex++;
+  } else {
+    p.awayShots.push(scored);
+    if (scored) p.awayScore++;
+    p.awayShooterIndex++;
+  }
+
+  // Обновляем счётчики на табло
+  document.getElementById("pens-home-score").textContent = p.homeScore;
+  document.getElementById("pens-away-score").textContent = p.awayScore;
+
+  // Лог
+  addPenaltyLog({
+    scored,
+    shooter: shooter.name,
+    keeper: keeper.name,
+    teamName: shooterTeam.name,
+    isHome
+  });
+
+  // Проверяем, не завершилась ли серия
+  checkPenaltyCompletion();
+  renderPenaltyDots();
+
+  // Меняем ход
+  if (!p.finished) {
+    p.turn = isHome ? "away" : "home";
+    // Если ход снова вернулся к home — увеличиваем номер раунда
+    if (p.turn === "home" && !p.suddenDeath) {
+      // Раунд завершён (обе команды отбили)
+      // (увеличение сделаем в advanceRoundIfNeeded после удара бота)
+    }
+  }
+}
+
+function advanceRoundIfNeeded() {
+  const p = state.penalties;
+  if (!p || p.finished) return;
+
+  // Если обе команды сделали одинаковое количество ударов — раунд закрыт
+  if (p.homeShots.length === p.awayShots.length) {
+    if (p.homeShots.length >= 5) {
+      p.suddenDeath = true;
+    } else {
+      p.round = p.homeShots.length + 1;
+    }
+  }
+  p.turn = "home";
+}
+
+function checkPenaltyCompletion() {
+  const p = state.penalties;
+  if (p.finished) return;
+
+  const h = p.homeScore;
+  const a = p.awayScore;
+  const hShots = p.homeShots.length;
+  const aShots = p.awayShots.length;
+
+  // --- Фаза 5 ударов: досрочное завершение ---
+  if (!p.suddenDeath && hShots <= 5 && aShots <= 5) {
+    const hRemaining = 5 - hShots;
+    const aRemaining = 5 - aShots;
+
+    // Игрок впереди, а бот уже не догонит
+    if (h > a + aRemaining) return finishPenalties(true);
+    // Бот впереди, а игрок уже не догонит
+    if (a > h + hRemaining) return finishPenalties(false);
+  }
+
+  // --- Внезапная смерть: обе команды отбили по одному удару в раунде, счёт разный ---
+  if (p.suddenDeath) {
+    // Считаем количество ударов в последнем «раунде смерти»
+    if (hShots === aShots && h !== a) {
+      return finishPenalties(h > a);
+    }
+  }
+}
+
+function finishPenalties(playerWon) {
+  const p = state.penalties;
+  if (!p) return;
+  p.finished = true;
+
+  const match = p.match;
+  const pensStr = p.homeScore + ":" + p.awayScore;
+
+  // Обновляем турнир
+  applyTournamentResult(match, playerWon, pensStr);
+
+  // Формируем победный текст
+  const winnerName = playerWon ? match.home.team.name : match.away.team.name;
+  const winnerText = "Победа по пенальти: " + winnerName + " 🏆";
+
+  // Рисуем финальный блок прямо на экране пенальти
+  const actions = document.getElementById("pens-actions");
+  const eventsHtml = renderMatchEvents(match.events);
+  const scorersHtml = state.tournament ? renderScorersTable(state.tournament.scorers) : "";
+
+  let nextActionsHtml;
+  if (match.isTournament) {
+    if (match.tournamentStage === "semi" && state.tournament && state.tournament.stage === "final") {
+      nextActionsHtml = `<button class="btn" onclick="returnToTournament()">К финалу →</button>
+                         <button class="btn secondary" onclick="backToMenuFromMatch()">В меню</button>`;
+    } else if (match.tournamentStage === "final" && state.tournament) {
+      nextActionsHtml = `<button class="btn" onclick="returnToTournament()">Итоги турнира</button>
+                         <button class="btn secondary" onclick="backToMenuFromMatch()">В меню</button>`;
+    } else {
+      nextActionsHtml = `<button class="btn" onclick="returnToTournament()">К турниру</button>
+                         <button class="btn secondary" onclick="backToMenuFromMatch()">В меню</button>`;
+    }
+  } else {
+    nextActionsHtml = `<button class="btn" onclick="backToMenuFromMatch()">Вернуться в меню</button>`;
+  }
+
+  actions.innerHTML = `
+    <div class="final-result" style="width:100%">
+      <h3>Серия пенальти завершена</h3>
+      <div class="final-score">${p.homeScore} : ${p.awayScore} <span style="font-size:1rem;color:#a9c2ae">(пен.)</span></div>
+      <div style="color:#a9c2ae;margin-bottom:6px">Основное время: ${match.home.score} : ${match.away.score}</div>
+      <div style="color:#febe10;margin-bottom:14px">${winnerText}</div>
+
+      <div class="match-report">
+        <h4>Протокол матча (основное время)</h4>
+        ${eventsHtml || `<div style="color:#a9c2ae;font-size:.85rem">Голов в основное время не было.</div>`}
+      </div>
+
+      ${scorersHtml ? `
+      <div class="match-report">
+        <h4>Лучший бомбардир турнира</h4>
+        ${scorersHtml}
+      </div>` : ""}
+
+      <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:16px">
+        ${nextActionsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function addPenaltyLog({ scored, shooter, keeper, teamName, isHome }) {
+  const log = document.getElementById("pens-log");
+  const item = document.createElement("div");
+  item.className = "pens-log-item " + (scored ? "scored" : "missed");
+
+  const icon = scored ? "⚽" : "❌";
+  const text = scored
+    ? `${icon} <span class="pens-shooter">${shooter}</span> (${teamName}) — забивает! Вратарь ${keeper} не спас.`
+    : `${icon} <span class="pens-shooter">${shooter}</span> (${teamName}) — не забивает! ${keeper} берёт удар!`;
+
+  item.innerHTML = text;
+  log.appendChild(item);
+  log.scrollTop = log.scrollHeight;
+}
+
+/* ------------------------- ФУТЕР МАТЧА ------------------------- */
+
+function renderMatchFooter(winnerText, match) {
+  const footer = document.getElementById("match-footer");
+  const eventsHtml = renderMatchEvents(match.events);
+  const scorersHtml = state.tournament ? renderScorersTable(state.tournament.scorers) : "";
+
+  let actionsHtml = `<button class="btn" onclick="backToMenuFromMatch()">Вернуться в меню</button>`;
+
+  if (match.isTournament) {
+    if (match.tournamentStage === "semi" && state.tournament && state.tournament.stage === "final") {
+      actionsHtml = `<button class="btn" onclick="returnToTournament()">К финалу →</button>` +
+                    `<button class="btn secondary" onclick="backToMenuFromMatch()">В меню</button>`;
+    } else if (match.tournamentStage === "final" && state.tournament) {
+      actionsHtml = `<button class="btn" onclick="returnToTournament()">Итоги турнира</button>` +
+                    `<button class="btn secondary" onclick="backToMenuFromMatch()">В меню</button>`;
+    } else {
+      actionsHtml = `<button class="btn" onclick="returnToTournament()">К турниру</button>` +
+                    `<button class="btn secondary" onclick="backToMenuFromMatch()">В меню</button>`;
+    }
+  }
+
+  footer.innerHTML = `
+    <div class="final-result">
+      <h3>Матч завершён</h3>
+      <div class="final-score">${match.home.score} : ${match.away.score}</div>
+      <div style="color:#a9c2ae;margin-bottom:14px">${winnerText}</div>
+
+      <div class="match-report">
+        <h4>Протокол матча</h4>
+        ${eventsHtml || `<div style="color:#a9c2ae;font-size:.85rem">Голов в матче не было.</div>`}
+      </div>
+
+      ${scorersHtml ? `
+      <div class="match-report">
+        <h4>Лучший бомбардир турнира</h4>
+        ${scorersHtml}
+      </div>` : ""}
+
+      <div style="display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-top:16px">
+        ${actionsHtml}
+      </div>
+    </div>
+  `;
+}
+
+function renderMatchEvents(events) {
+  if (!events || !events.length) return "";
+  return events.map(e => `
+    <div class="report-line">
+      <span class="report-minute">${e.minute}'</span>
+      <span class="report-goal-team">⚽ ${e.scorer} (${e.team})</span>
+      <span class="report-assist">· ассист: ${e.assist}</span>
+    </div>
+  `).join("");
+}
+
+function renderScorersTable(scorers) {
+  const arr = Object.entries(scorers).map(([name, info]) => ({
+    name, goals: info.goals, team: info.team
+  }));
+  if (!arr.length) {
+    return `<div style="color:#a9c2ae;font-size:.85rem">Пока никто не забил.</div>`;
+  }
+  arr.sort((a, b) => b.goals - a.goals);
+  const rows = arr.slice(0, 5).map(s => `
+    <tr>
+      <td>${s.name}</td>
+      <td style="color:#a9c2ae">${s.team}</td>
+      <td style="text-align:right"><b>${s.goals}</b></td>
+    </tr>
+  `).join("");
+  return `
+    <table class="scorers-table">
+      <thead>
+        <tr><th>Игрок</th><th>Клуб</th><th style="text-align:right">Голы</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+}
+
+function returnToTournament() {
+  if (state.match && state.match.timerId) clearInterval(state.match.timerId);
+  state.match = null;
+  state.penalties = null;
+  renderTournament();
+  showScreen("screen-tournament");
+}
+
+function backToMenuFromMatch() {
+  if (state.match && state.match.timerId) clearInterval(state.match.timerId);
+  state.match = null;
+  state.tournament = null;
+  state.penalties = null;
+  refreshMenu();
+  showScreen("screen-menu");
+}
+
+/* ------------------------- ИНИЦИАЛИЗАЦИЯ ------------------------- */
+
+const originalShowScreen = showScreen;
+showScreen = function(id) {
+  originalShowScreen(id);
+  if (id === "screen-squad" && state.playerTeamId) {
+    state.selectedPlayer = null;
+    renderSquad();
+  }
+  if (id === "screen-menu" && state.playerTeamId) {
+    refreshMenu();
+  }
+};
+</script>
+</body>
+  </html>
