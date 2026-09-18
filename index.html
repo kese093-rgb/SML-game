@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SML GAME — Онлайн-лига</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg-deep: #0b1a12; --bg-mid: #10321f;
+    --gold: #febe10; --text: #eef5ef; --text-dim: #a9c2ae;
+    --green: #4ade80; --danger: #ef4444;
+  }
+  html, body {
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--text);
+    background: radial-gradient(circle at 50% -10%, #1e5a37 0%, transparent 55%),
+                linear-gradient(180deg, var(--bg-mid) 0%, var(--bg-deep) 100%);
+    background-attachment: fixed;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none;
+    background-image:
+      linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px),
+      linear-gradient(0deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+    background-size: 80px 80px; opacity: 0.3; z-index: 0;
+  }
+  .screen { display: none; position: relative; z-index: 1; padding: 24px 16px 60px; min-height: 100vh; animation: fadeIn .35s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .title-main {
+    font-size: clamp(1.6rem, 6vw, 3rem); font-weight: 900; letter-spacing: 3px;
+    text-align: center; text-transform: uppercase;
+    background: linear-gradient(180deg, #ffffff 0%, #7dd3a1 60%, #3a8b5f 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    margin-bottom: 8px;
+  }
+  .subtitle { text-align: center; color: var(--text-dim); letter-spacing: 4px; text-transform: uppercase; font-size: .75rem; margin-bottom: 24px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 14px 22px; border: none; border-radius: 12px;
+    font-size: .95rem; font-weight: 700; letter-spacing: 1px; cursor: pointer;
+    background: linear-gradient(180deg, #2b7a4b 0%, #1d5a37 100%);
+    color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    text-transform: uppercase; width: 100%;
+    transition: transform .15s ease, box-shadow .25s ease;
+  }
+  .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(74,222,128,0.35); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn.secondary { background: transparent; border: 2px solid rgba(255,255,255,0.25); color: var(--text); }
+  .btn.danger { background: linear-gradient(180deg, #b91c1c, #7f1010); }
+  .btn.small { padding: 8px 12px; font-size: .8rem; }
+  .menu-wrap { max-width: 480px; margin: 0 auto; text-align: center; }
+  .menu-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+  .form-group { max-width: 480px; margin: 0 auto 12px; text-align: left; }
+  .form-label { display: block; font-size: .75rem; letter-spacing: 2px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 6px; }
+  .form-input {
+    width: 100%; padding: 13px 15px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.15); background: rgba(0,0,0,0.4);
+    color: var(--text); font-size: 1rem; outline: none;
+  }
+  .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(74,222,128,0.15); }
+  .error-msg {
+    max-width: 480px; margin: 10px auto; padding: 10px 14px; border-radius: 10px;
+    background: rgba(239,68,68,0.15); color: #fecaca;
+    border-left: 3px solid var(--danger); font-size: .85rem; text-align: left;
+  }
+  .info-box {
+    max-width: 480px; margin: 0 auto 16px; padding: 12px 16px; border-radius: 10px;
+    background: rgba(74,222,128,0.08); border-left: 3px solid var(--green);
+    color: var(--text-dim); font-size: .85rem; text-align: left; line-height: 1.5;
+  }
+  .team-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 8px; max-width: 900px; margin: 16px auto 0;
+  }
+  .team-card {
+    padding: 12px; border-radius: 12px; cursor: pointer;
+    background: linear-gradient(135deg, #1a4d2e 0%, #0e2a1a 100%);
+    border: 2px solid rgba(74,222,128,0.25); text-align: center;
+    transition: all .2s ease;
+  }
+  .team-card:hover { transform: translateY(-2px); border-color: var(--green); }
+  .team-card.taken { opacity: .4; cursor: not-allowed; filter: grayscale(1); }
+  .team-card.disabled { opacity: .35; cursor: not-allowed; filter: grayscale(1); }
+  .team-card.chosen { border-color: var(--gold); background: linear-gradient(135deg, rgba(254,190,16,0.2), rgba(0,0,0,0.4)); }
+  .team-card .tc-short { font-size: 1.4rem; font-weight: 900; letter-spacing: 2px; color: var(--gold); }
+  .team-card .tc-name { font-size: .72rem; font-weight: 700; margin-top: 2px; }
+  .team-card .tc-coach { font-size: .65rem; color: var(--text-dim); margin-top: 3px; }
+  .career-header {
+    max-width: 480px; margin: 0 auto 16px; padding: 14px 18px; border-radius: 14px;
+    background: linear-gradient(180deg, rgba(0,0,0,0.5), rgba(0,0,0,0.3));
+    border: 1px solid rgba(255,255,255,0.1); text-align: center;
+  }
+  .career-header .ch-nick { font-size: .75rem; color: var(--text-dim); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+  .career-header .ch-nick b { color: var(--gold); }
+  .career-header .ch-team { font-size: 1.3rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+  .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-width: 480px; margin: 0 auto; }
+  .menu-grid .btn { padding: 16px 8px; font-size: .8rem; }
+  .dev-badge {
+    position: fixed; top: 12px; right: 12px; z-index: 100;
+    padding: 6px 12px; border-radius: 20px; background: var(--gold); color: #111;
+    font-weight: 900; font-size: .65rem; letter-spacing: 1px; text-transform: uppercase;
+  }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: #b91c1c; color: #fff; padding: 14px 24px; border-radius: 12px;
+    font-weight: 700; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: transform .3s ease; z-index: 1000; max-width: 90vw; text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: #15803d; }
+  .loading { text-align: center; padding: 40px 20px; color: var(--text-dim); font-size: .9rem; }
+  .loading::after {
+    content: ""; display: inline-block; width: 16px; height: 16px; margin-left: 8px;
+    border: 2px solid var(--green); border-top-color: transparent; border-radius: 50%;
+    animation: spin 1s linear infinite; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .squad-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; max-width: 900px; margin: 0 auto; }
+  @media (max-width: 640px) { .squad-columns { grid-template-columns: 1fr; } }
+  .squad-col-title {
+    font-size: .75rem; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 6px; text-align: left;
+  }
+  .squad-list { display: flex; flex-direction: column; gap: 6px; }
+  .player-card {
+    display: flex; align-items: center; gap: 10px; padding: 9px 12px;
+    border-radius: 10px; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1); cursor: pointer; user-select: none;
+    transition: all .2s ease;
+  }
+  .player-card:hover { background: rgba(74,222,128,0.08); border-color: rgba(74,222,128,0.35); }
+  .player-card.selected { background: rgba(74,222,128,0.2); border-color: var(--green); box-shadow: 0 0 0 2px rgba(74,222,128,0.35); }
+  .player-pos {
+    min-width: 42px; font-weight: 900; font-size: .7rem; padding: 4px 6px;
+    border-radius: 6px; background: rgba(0,0,0,0.4); text-align: center; color: #cde8d3;
+  }
+  .player-main { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .player-name { font-size: .85rem; font-weight: 600; }
+  .energy-bar { height: 4px; background: rgba(0,0,0,0.4); border-radius: 2px; overflow: hidden; }
+  .energy-bar-fill { height: 100%; border-radius: 2px; }
+  .energy-bar-fill.good { background: #4ade80; }
+  .energy-bar-fill.mid { background: #fbbf24; }
+  .energy-bar-fill.bad { background: #ef4444; }
+  .player-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; min-width: 46px; }
+  .player-rating { font-weight: 900; font-size: .95rem; padding: 2px 7px; border-radius: 7px; background: rgba(0,0,0,0.4); }
+  .player-energy-text { font-size: .65rem; color: var(--text-dim); font-weight: 700; }
+  .rating-gold { color: var(--gold); }
+  .rating-green { color: var(--green); }
+  .rating-gray { color: #9ca3af; }
+  .squad-hint {
+    max-width: 900px; margin: 16px auto 0; padding: 12px 16px; border-radius: 10px;
+    background: rgba(0,0,0,0.3); font-size: .82rem; color: var(--text-dim);
+    border-left: 3px solid var(--green); text-align: left;
+  }
+  .tactic-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 900px; margin: 20px auto 0; }
+  @media (max-width: 640px) { .tactic-grid { grid-template-columns: 1fr; } }
+  .tactic-card {
+    padding: 18px 14px; border-radius: 16px;
+    background: rgba(255,255,255,0.05); border: 2px solid rgba(255,255,255,0.15);
+    cursor: pointer; text-align: center; transition: all .25s ease;
+  }
+  .tactic-card:hover { transform: translateY(-3px); border-color: rgba(74,222,128,0.6); }
+  .tactic-card.active { border-color: var(--gold); background: linear-gradient(180deg, rgba(254,190,16,0.15), rgba(0,0,0,0.35)); box-shadow: 0 0 24px rgba(254,190,16,0.35); }
+  .tactic-card .tactic-icon { font-size: 2rem; margin-bottom: 8px; }
+  .tactic-card .tactic-name { font-size: 1rem; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: var(--gold); margin-bottom: 6px; }
+  .tactic-card .tactic-desc { font-size: .75rem; color: var(--text-dim); line-height: 1.4; }
+  .list-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; max-width: 900px; margin: 16px auto 0; }
+  .list-item {
+    padding: 12px; border-radius: 12px; background: rgba(255,255,255,0.05);
+    border: 2px solid rgba(255,255,255,0.15); cursor: pointer; text-align: center;
+    transition: all .2s ease;
+  }
+  .list-item:hover { border-color: var(--green); }
+  .list-item.chosen { border-color: var(--gold); background: linear-gradient(180deg, rgba(254,190,16,0.15), rgba(0,0,0,0.3)); }
+  .list-item .li-title { font-size: .9rem; font-weight: 900; letter-spacing: 1px; }
+  .list-item .li-sub { font-size: .7rem; color: var(--text-dim); margin-top: 4px; }
+  .section-title {
+    max-width: 900px; margin: 20px auto 8px; font-size: .75rem; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--text-dim); text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.12); padding-bottom: 6px;
+  }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 900px; margin: 12px auto 0; }
+  .chip {
+    padding: 8px 14px; border-radius: 20px; background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.2); font-size: .8rem; cursor: pointer;
+  }
+  .chip.chosen { background: var(--gold); color: #111; border-color: var(--gold); font-weight: 900; }
+  .tournament-card {
+    max-width: 900px; margin: 10px auto; padding: 14px 16px; border-radius: 12px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    cursor: pointer; transition: all .2s ease;
+  }
+  .tournament-card:hover { border-color: var(--green); transform: translateX(4px); }
+  .tournament-card .t-name { font-size: 1rem; font-weight: 900; }
+  .tournament-card .t-meta { font-size: .75rem; color: var(--text-dim); margin-top: 4px; }
+  .bracket-round { max-width: 900px; margin: 16px auto; }
+  .bracket-round-label { font-size: .7rem; letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 8px; text-align: center; }
+  .bracket-match {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 6px; padding: 8px 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    font-weight: 700; font-size: .8rem; margin-bottom: 6px;
+  }
+  .bracket-team { flex: 1; text-align: center; font-size: .78rem; }
+  .bracket-score { font-size: .82rem; color: var(--gold); min-width: 42px; text-align: center; font-weight: 900; }
+  .bracket-team.win { color: var(--gold); }
+  .bracket-team.lose { color: var(--text-dim); opacity: .6; }
+  .table-standings { width: 100%; max-width: 900px; margin: 16px auto; border-collapse: collapse; font-size: .78rem; }
+  .table-standings th {
+    text-align: left; padding: 6px 4px; color: var(--text-dim);
+    font-size: .65rem; letter-spacing: 1.5px; text-transform: uppercase;
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+  }
+  .table-standings td { padding: 7px 4px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .table-standings td:first-child { font-weight: 900; color: var(--gold); }
+</style>
+</head>
+<body>
+
+<!-- ГЛАВНОЕ МЕНЮ -->
+<div id="screen-main" class="screen active">
+  <h1 class="title-main">SML GAME</h1>
+  <p class="subtitle">Онлайн-лига</p>
+  <div class="menu-wrap">
+    <div class="menu-actions">
+      <button class="btn" onclick="enterCareer()">Карьера</button>
+      <button class="btn secondary" onclick="showScreen('screen-devcode')">Аккаунт разработчика</button>
+    </div>
+  </div>
+</div>
+
+<!-- КОД РАЗРАБОТЧИКА -->
+<div id="screen-devcode" class="screen">
+  <h1 class="title-main" style="font-size:1.6rem">Разработчик</h1>
+  <p class="subtitle">Введите код доступа</p>
+  <div class="form-group">
+    <label class="form-label">Секретный код</label>
+    <input id="dev-code-input" class="form-input" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
+  </div>
+  <div id="devcode-error" class="error-msg" style="display:none"></div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn" onclick="checkDevCode()">Войти</button>
+      <button class="btn secondary" onclick="showScreen('screen-main')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- МЕНЮ РАЗРАБОТЧИКА -->
+<div id="screen-devmenu" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.6rem">Разработчик</h1>
+  <p class="subtitle">Управление лигой</p>
+  <div class="menu-wrap">
+    <div class="menu-actions">
+      <button class="btn" onclick="devCreateTournament()">Создать турнир</button>
+      <button class="btn" onclick="devMyTournaments()">Мои турниры</button>
+      <button class="btn secondary" onclick="devTeamsManage()">Управление командами</button>
+      <button class="btn danger" onclick="devWipeGame()">Очистить всю игру</button>
+      <button class="btn secondary" onclick="devLogout()">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+
+<!-- ОЧИСТКА -->
+<div id="screen-wipe" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.6rem;color:#ef4444">Очистка игры</h1>
+  <p class="subtitle">Удалить ВСЕ данные</p>
+  <div class="info-box" style="border-left-color:#ef4444;background:rgba(239,68,68,0.1);color:#fecaca">
+    ⚠️ Будут удалены: все тренеры, турниры, матчи, вся статистика.<br><br>
+    Команды станут свободными. Составы вернутся к заводским.<br><br>
+    <b>Необратимо.</b>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Код удаления</label>
+    <input id="wipe-code" class="form-input" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
+  </div>
+  <div id="wipe-error" class="error-msg" style="display:none"></div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn danger" onclick="confirmWipe()">УДАЛИТЬ ВСЁ</button>
+      <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- СОЗДАНИЕ ТУРНИРА -->
+<div id="screen-create-tournament" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.4rem">Создать турнир</h1>
+  <p class="subtitle">Настройка</p>
+
+  <div class="form-group">
+    <label class="form-label">Название турнира</label>
+    <input id="t-name" class="form-input" type="text" placeholder="Например: Летний кубок" maxlength="30">
+  </div>
+
+  <div class="section-title">Формат</div>
+  <div class="list-grid" id="format-grid">
+    <div class="list-item" data-format="playoff_4" onclick="pickFormat('playoff_4')">
+      <div class="li-title">Плей-офф</div>
+      <div class="li-sub">4 команды</div>
+    </div>
+    <div class="list-item" data-format="playoff_8" onclick="pickFormat('playoff_8')">
+      <div class="li-title">Плей-офф</div>
+      <div class="li-sub">8 команд</div>
+    </div>
+    <div class="list-item" data-format="playoff_16" onclick="pickFormat('playoff_16')">
+      <div class="li-title">Плей-офф</div>
+      <div class="li-sub">16 команд</div>
+    </div>
+    <div class="list-item" data-format="league" onclick="pickFormat('league')">
+      <div class="li-title">Чемпионат</div>
+      <div class="li-sub">1 или 2 круга</div>
+    </div>
+  </div>
+
+  <div id="league-options" style="display:none">
+    <div class="section-title">Кругов</div>
+    <div class="chip-row">
+      <div class="chip" data-rounds="1" onclick="pickRounds(1)">1 круг</div>
+      <div class="chip" data-rounds="2" onclick="pickRounds(2)">2 круга</div>
+    </div>
+  </div>
+
+  <div class="section-title">Команды <span id="teams-count" style="color:var(--gold)">(0)</span></div>
+  <div id="teams-list" class="team-grid"></div>
+
+  <div id="create-tournament-error" class="error-msg" style="display:none"></div>
+
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn" onclick="confirmCreateTournament()">Создать турнир</button>
+      <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- ПРОСМОТР ТУРНИРА (РАЗРАБОТЧИК) -->
+<div id="screen-tournament-view" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.4rem" id="tv-name">Турнир</h1>
+  <p class="subtitle" id="tv-format">—</p>
+
+  <div id="tv-content" class="loading">Загрузка</div>
+
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="devMyTournaments()">← Мои турниры</button>
+    </div>
+  </div>
+</div>
+
+<!-- РЕГИСТРАЦИЯ/ВХОД -->
+<div id="screen-auth" class="screen">
+  <h1 class="title-main" style="font-size:1.6rem">Карьера</h1>
+  <p class="subtitle" id="auth-subtitle">Регистрация</p>
+  <div class="info-box" id="auth-info" style="display:none">
+    Аккаунт не найден. Введите ник и пароль для регистрации.
+  </div>
+  <div class="form-group">
+    <label class="form-label">Ваш ник</label>
+    <input id="auth-nick" class="form-input" type="text" placeholder="Например: Ivan" maxlength="20">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Пароль</label>
+    <input id="auth-pass" class="form-input" type="password" placeholder="минимум 4 символа">
+  </div>
+  <div id="auth-error" class="error-msg" style="display:none"></div>
+  <div class="menu-wrap" style="margin-top:16px">
+    <div class="menu-actions">
+      <button class="btn" id="auth-btn" onclick="submitAuth()">Войти</button>
+      <button class="btn secondary" onclick="showScreen('screen-main')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- ВЫБОР КОМАНДЫ -->
+<div id="screen-team-select" class="screen">
+  <h1 class="title-main" style="font-size:1.4rem">Выбери команду</h1>
+  <p class="subtitle">Свободные клубы</p>
+  <div id="team-select-grid" class="team-grid"></div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="logoutCareer()">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+
+<!-- МЕНЮ КАРЬЕРЫ -->
+<div id="screen-career" class="screen">
+  <div class="career-header">
+    <div class="ch-nick">Тренер: <b id="career-nick">—</b></div>
+    <div class="ch-team" id="career-team">—</div>
+  </div>
+  <div class="menu-grid">
+    <button class="btn" onclick="openSquad()">Состав</button>
+    <button class="btn" onclick="openTactic()">Тактика</button>
+    <button class="btn" onclick="careerStub('Трансферы')">Трансферы</button>
+    <button class="btn" onclick="careerStub('Товарняк')">Товарняк</button>
+  </div>
+  <div class="menu-wrap" style="margin-top:12px">
+    <div class="menu-actions">
+      <button class="btn" onclick="careerStub('Турниры')">Турниры</button>
+      <button class="btn danger" onclick="leaveClub()">Покинуть клуб</button>
+      <button class="btn secondary" onclick="logoutCareer()">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+
+<!-- СОСТАВ -->
+<div id="screen-squad" class="screen">
+  <h1 class="title-main" style="font-size:1.3rem">Состав</h1>
+  <p class="subtitle" id="squad-team-name">—</p>
+  <div id="squad-content" class="loading">Загрузка</div>
+  <div class="squad-hint">💡 Кликни по игроку основы, затем по замене — они поменяются. Клик по двум игрокам основы — обмен местами.</div>
+  <div class="menu-wrap" style="margin-top:16px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-career')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- ТАКТИКА -->
+<div id="screen-tactic" class="screen">
+  <h1 class="title-main" style="font-size:1.3rem">Тактика</h1>
+  <p class="subtitle">Стиль игры</p>
+  <div class="tactic-grid">
+    <div class="tactic-card" data-tactic="attack" onclick="pickTactic('attack')">
+      <div class="tactic-icon">⚔️</div>
+      <div class="tactic-name">Атака</div>
+      <div class="tactic-desc">+20% к голам, +20% к пропущенным.</div>
+    </div>
+    <div class="tactic-card" data-tactic="balance" onclick="pickTactic('balance')">
+      <div class="tactic-icon">⚖️</div>
+      <div class="tactic-name">Баланс</div>
+      <div class="tactic-desc">Нейтрально.</div>
+    </div>
+    <div class="tactic-card" data-tactic="defense" onclick="pickTactic('defense')">
+      <div class="tactic-icon">🛡️</div>
+      <div class="tactic-name">Защита</div>
+      <div class="tactic-desc">−20% к голам, −20% к пропущенным.</div>
+    </div>
+  </div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-career')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<!-- ЗАГЛУШКА -->
+<div id="screen-stub" class="screen">
+  <div class="dev-badge">DEV</div>
+  <div class="menu-wrap">
+    <h1 class="title-main" style="font-size:1.5rem" id="stub-title">В разработке</h1>
+    <p class="subtitle">Скоро</p>
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+/* =========================================================================
+   SML GAME — Онлайн-лига (Часть 1 из 2)
+   ========================================================================= */
+
+const SUPABASE_URL = "https://mrnarodofflopdcnyjyf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_9XmNuVIAq2vEMAm8MR3PSQ_p8fB1J3T";
+const DEV_CODE = "1717";
+const WIPE_CODE = "1616";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const STARTING_POSITIONS = ["ЛВ","НАП","ПВ","ЦАП","ЦП","ЦП","ЛЗ","ЦЗ","ЦЗ","ПЗ","ВРТ"];
+const BENCH_POSITIONS = ["НАП","ЦП","ЦЗ","ВРТ"];
+
+const state = {
+  user: null,
+  profile: null,
+  team: null,
+  isDev: false,
+  squadPlayers: [],
+  selectedPlayer: null,
+  creating: {
+    name: "",
+    format: null,
+    rounds: 1,
+    chosenTeams: new Set()
+  },
+  currentTournamentId: null
+};
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  const el = document.getElementById(id);
+  if (el) el.classList.add("active");
+  window.scrollTo({ top: 0 });
+}
+
+function toast(msg, isSuccess = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.remove("success");
+  if (isSuccess) t.classList.add("success");
+  t.classList.add("show");
+  clearTimeout(toast._tid);
+  toast._tid = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function showError(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+function hideError(elId) {
+  const el = document.getElementById(elId);
+  el.style.display = "none";
+}
+
+function energyClass(e) {
+  if (e >= 70) return "good";
+  if (e >= 40) return "mid";
+  return "bad";
+}
+
+function ratingClass(r) {
+  if (r >= 90) return "rating-gold";
+  if (r >= 85) return "rating-green";
+  return "rating-gray";
+}
+
+async function enterCareer() {
+  const { data: sessionData } = await sb.auth.getSession();
+  if (sessionData.session) {
+    state.user = sessionData.session.user;
+    const loaded = await loadProfile();
+    if (loaded) {
+      if (state.profile.team_id) {
+        await loadTeam(state.profile.team_id);
+        renderCareerMenu();
+        showScreen("screen-career");
+      } else {
+        await renderTeamSelectGrid();
+        showScreen("screen-team-select");
+      }
+      return;
+    }
+  }
+  prepareAuthForm();
+}
+
+function prepareAuthForm() {
+  document.getElementById("auth-nick").value = "";
+  document.getElementById("auth-pass").value = "";
+  hideError("auth-error");
+  document.getElementById("auth-info").style.display = "block";
+  document.getElementById("auth-btn").textContent = "Зарегистрироваться";
+  document.getElementById("auth-subtitle").textContent = "Регистрация тренера";
+  showScreen("screen-auth");
+}
+
+function nickToEmail(nick) {
+  return nick.trim().toLowerCase() + "@sml.local";
+}
+
+async function submitAuth() {
+  hideError("auth-error");
+  const nick = document.getElementById("auth-nick").value.trim();
+  const pass = document.getElementById("auth-pass").value;
+  if (nick.length < 2) return showError("auth-error", "Ник минимум 2 символа");
+  if (!/^[a-zA-Zа-яА-Я0-9_]+$/.test(nick)) return showError("auth-error", "Ник: только буквы, цифры, _");
+  if (pass.length < 4) return showError("auth-error", "Пароль минимум 4 символа");
+
+  const email = nickToEmail(nick);
+  const btn = document.getElementById("auth-btn");
+  btn.disabled = true;
+
+  try {
+    let { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      const signUp = await sb.auth.signUp({ email, password: pass });
+      if (signUp.error) throw signUp.error;
+      data = signUp.data;
+      await sb.from("profiles").insert({
+        id: data.user.id,
+        nickname: nick,
+        role: "coach"
+      });
+    }
+    state.user = data.user;
+    const ok = await loadProfile();
+    if (!ok) throw new Error("Не удалось загрузить профиль");
+    if (state.profile.team_id) {
+      await loadTeam(state.profile.team_id);
+      renderCareerMenu();
+      showScreen("screen-career");
+    } else {
+      await renderTeamSelectGrid();
+      showScreen("screen-team-select");
+    }
+  } catch (e) {
+    console.error(e);
+    if (e.message && e.message.includes("Invalid login")) showError("auth-error", "Неверный ник или пароль");
+    else if (e.message && e.message.includes("User already registered")) showError("auth-error", "Этот ник уже занят");
+    else showError("auth-error", "Ошибка: " + (e.message || "неизвестно"));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function loadProfile() {
+  if (!state.user) return false;
+  const { data, error } = await sb.from("profiles").select("*").eq("id", state.user.id).single();
+  if (error || !data) return false;
+  state.profile = data;
+  return true;
+}
+
+async function loadTeam(teamId) {
+  const { data, error } = await sb.from("teams").select("*").eq("id", teamId).single();
+  if (!error && data) state.team = data;
+}
+
+async function renderTeamSelectGrid() {
+  const grid = document.getElementById("team-select-grid");
+  grid.innerHTML = `<div class="loading">Загружаем команды</div>`;
+  const { data: teams, error } = await sb.from("teams").select("*").order("name");
+  if (error || !teams) {
+    grid.innerHTML = `<div class="error-msg">Ошибка загрузки</div>`;
+    return;
+  }
+  const teamsWithPlayers = new Set();
+  const { data: allPlayers } = await sb.from("players").select("team_id");
+  if (allPlayers) allPlayers.forEach(p => teamsWithPlayers.add(p.team_id));
+
+  grid.innerHTML = "";
+  teams.forEach(t => {
+    const hasPlayers = teamsWithPlayers.has(t.id);
+    const card = document.createElement("div");
+    let cls = "team-card";
+    if (!t.is_free) cls += " taken";
+    else if (!hasPlayers) cls += " disabled";
+    card.className = cls;
+    card.innerHTML = `
+      <div class="tc-short">${t.short}</div>
+      <div class="tc-name">${t.name}</div>
+      ${!t.is_free ? `<div class="tc-coach">занята</div>` : ""}
+      ${t.is_free && !hasPlayers ? `<div class="tc-coach">в разработке</div>` : ""}
+    `;
+    if (t.is_free && hasPlayers) card.onclick = () => pickTeam(t.id);
+    grid.appendChild(card);
+  });
+}
+
+async function pickTeam(teamId) {
+  try {
+    const { data, error } = await sb.from("teams")
+      .update({ coach_id: state.user.id, is_free: false })
+      .eq("id", teamId).eq("is_free", true).select().single();
+    if (error || !data) {
+      toast("Эту команду уже заняли");
+      await renderTeamSelectGrid();
+      return;
+    }
+    await sb.from("profiles").update({ team_id: teamId }).eq("id", state.user.id);
+    state.profile.team_id = teamId;
+    state.team = data;
+    toast("Команда выбрана!", true);
+    renderCareerMenu();
+    showScreen("screen-career");
+  } catch (e) {
+    console.error(e);
+    toast("Ошибка выбора");
+  }
+}
+
+function renderCareerMenu() {
+  document.getElementById("career-nick").textContent = state.profile.nickname;
+  document.getElementById("career-team").textContent = state.team ? state.team.name : "—";
+}
+
+function careerStub(name) {
+  toast(`${name}: скоро появится`);
+}
+
+async function leaveClub() {
+  if (!confirm("Покинуть клуб? Команда станет свободной, но состав и тактика сохранятся.")) return;
+  try {
+    await sb.from("teams").update({ coach_id: null, is_free: true }).eq("id", state.team.id);
+    await sb.from("profiles").update({ team_id: null }).eq("id", state.user.id);
+    state.profile.team_id = null;
+    state.team = null;
+    toast("Вы покинули клуб", true);
+    await renderTeamSelectGrid();
+    showScreen("screen-team-select");
+  } catch (e) {
+    console.error(e);
+    toast("Ошибка");
+  }
+}
+
+async function logoutCareer() {
+  await sb.auth.signOut();
+  state.user = null;
+  state.profile = null;
+  state.team = null;
+  toast("Вы вышли", true);
+  showScreen("screen-main");
+}
+
+async function openSquad() {
+  document.getElementById("squad-team-name").textContent = state.team ? state.team.name : "";
+  document.getElementById("squad-content").innerHTML = `<div class="loading">Загрузка</div>`;
+  showScreen("screen-squad");
+
+  const { data, error } = await sb.from("players").select("*").eq("team_id", state.team.id);
+  if (error || !data) {
+    document.getElementById("squad-content").innerHTML = `<div class="error-msg">Ошибка загрузки</div>`;
+    return;
+  }
+  const starting = STARTING_POSITIONS.map(pos => data.find(p => p.is_starting && p.pos === pos)).filter(Boolean);
+  const bench = BENCH_POSITIONS.map(pos => data.find(p => !p.is_starting && p.pos === pos)).filter(Boolean);
+  state.squadPlayers = { starting, bench };
+  state.selectedPlayer = null;
+  renderSquad();
+}
+
+function renderSquad() {
+  const { starting, bench } = state.squadPlayers;
+  const startHtml = starting.map((p, i) => buildPlayerCardHtml(p, "starting", i)).join("");
+  const benchHtml = bench.map((p, i) => buildPlayerCardHtml(p, "bench", i)).join("");
+  document.getElementById("squad-content").innerHTML = `
+    <div class="squad-columns">
+      <div>
+        <div class="squad-col-title">Основной состав (11)</div>
+        <div class="squad-list">${startHtml}</div>
+      </div>
+      <div>
+        <div class="squad-col-title">Замены (4)</div>
+        <div class="squad-list">${benchHtml}</div>
+      </div>
+    </div>
+  `;
+  document.querySelectorAll("#squad-content .player-card").forEach(el => {
+    const list = el.dataset.list;
+    const index = parseInt(el.dataset.index, 10);
+    el.onclick = () => onPlayerClick(list, index);
+  });
+}
+
+function buildPlayerCardHtml(p, list, index) {
+  const sel = state.selectedPlayer;
+  const isSelected = sel && sel.list === list && sel.index === index;
+  const energy = Math.max(0, Math.min(100, p.energy ?? 100));
+  const eCls = energyClass(energy);
+  return `
+    <div class="player-card ${isSelected ? "selected" : ""}" data-list="${list}" data-index="${index}">
+      <span class="player-pos">${p.pos}</span>
+      <div class="player-main">
+        <span class="player-name">${p.name}</span>
+        <div class="energy-bar"><div class="energy-bar-fill ${eCls}" style="width:${energy}%"></div></div>
+      </div>
+      <div class="player-stats">
+        <span class="player-rating ${ratingClass(p.rating)}">${p.rating}</span>
+        <span class="player-energy-text">${Math.round(energy)}%</span>
+      </div>
+    </div>
+  `;
+}
+
+function onPlayerClick(list, index) {
+  const sel = state.selectedPlayer;
+  if (!sel) { state.selectedPlayer = { list, index }; renderSquad(); return; }
+  if (sel.list === list && sel.index === index) { state.selectedPlayer = null; renderSquad(); return; }
+  swapPlayers(sel, { list, index });
+  state.selectedPlayer = null;
+  renderSquad();
+}
+
+async function swapPlayers(a, b) {
+  const { starting, bench } = state.squadPlayers;
+  const listA = a.list === "starting" ? starting : bench;
+  const listB = b.list === "starting" ? starting : bench;
+  const playerA = listA[a.index];
+  const playerB = listB[b.index];
+  const slotPosA = a.list === "starting" ? STARTING_POSITIONS[a.index] : BENCH_POSITIONS[a.index];
+  const slotPosB = b.list === "starting" ? STARTING_POSITIONS[b.index] : BENCH_POSITIONS[b.index];
+
+  try {
+    await Promise.all([
+      sb.from("players").update({ pos: slotPosA, is_starting: a.list === "starting" }).eq("id", playerB.id),
+      sb.from("players").update({ pos: slotPosB, is_starting: b.list === "starting" }).eq("id", playerA.id)
+    ]);
+    listA[a.index] = { ...playerB, pos: slotPosA, is_starting: a.list === "starting" };
+    listB[b.index] = { ...playerA, pos: slotPosB, is_starting: b.list === "starting" };
+    toast("Обмен выполнен", true);
+  } catch (e) {
+    console.error(e);
+    toast("Ошибка обмена");
+  }
+}
+
+function openTactic() { updateTacticUI(); showScreen("screen-tactic"); }
+
+function updateTacticUI() {
+  const current = state.team?.tactic || "balance";
+  document.querySelectorAll(".tactic-card").forEach(c => {
+    c.classList.toggle("active", c.dataset.tactic === current);
+  });
+}
+
+async function pickTactic(tactic) {
+  try {
+    const { error } = await sb.from("teams").update({ tactic }).eq("id", state.team.id);
+    if (error) throw error;
+    state.team.tactic = tactic;
+    updateTacticUI();
+    toast("Тактика сохранена", true);
+  } catch (e) {
+    console.error(e);
+    toast("Ошибка сохранения");
+  }
+}
+
+/* ================= РАЗРАБОТЧИК ================= */
+
+function checkDevCode() {
+  hideError("devcode-error");
+  const code = document.getElementById("dev-code-input").value.trim();
+  if (code !== DEV_CODE) return showError("devcode-error", "Неверный код");
+  state.isDev = true;
+  localStorage.setItem("sml_dev", "1");
+  document.getElementById("dev-code-input").value = "";
+  showScreen("screen-devmenu");
+}
+
+function devTeamsManage() {
+  document.getElementById("stub-title").textContent = "Управление командами";
+  showScreen("screen-stub");
+}
+
+function devWipeGame() {
+  document.getElementById("wipe-code").value = "";
+  hideError("wipe-error");
+  showScreen("screen-wipe");
+}
+
+async function confirmWipe() {
+  hideError("wipe-error");
+  const code = document.getElementById("wipe-code").value.trim();
+  if (code !== WIPE_CODE) return showError("wipe-error", "Неверный код");
+  if (!confirm("ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ!\n\nВсё будет удалено. Продолжить?")) return;
+
+  try {
+    toast("Очистка...");
+    await sb.from("transfers").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await sb.from("matches").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await sb.from("tournament_teams").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await sb.from("tournaments").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await sb.from("matchmaking").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await sb.from("profiles").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+    await sb.from("teams").update({ coach_id: null, is_free: true, tactic: "balance" })
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    await sb.from("players").update({ energy: 100 })
+      .neq("id", "00000000-0000-0000-0000-000000000000");
+    toast("Игра очищена", true);
+    showScreen("screen-devmenu");
+  } catch (e) {
+    console.error(e);
+    showError("wipe-error", "Ошибка: " + (e.message || ""));
+  }
+}
+
+function devLogout() {
+  state.isDev = false;
+  localStorage.removeItem("sml_dev");
+  toast("Вы вышли из аккаунта разработчика", true);
+  showScreen("screen-main");
+}
+
+/* ================= СОЗДАНИЕ ТУРНИРА ================= */
+
+async function devCreateTournament() {
+  state.creating = { name: "", format: null, rounds: 1, chosenTeams: new Set() };
+  document.getElementById("t-name").value = "";
+  document.getElementById("league-options").style.display = "none";
+  document.querySelectorAll("#format-grid .list-item").forEach(el => el.classList.remove("chosen"));
+  document.querySelectorAll("#league-options .chip").forEach(el => el.classList.remove("chosen"));
+  hideError("create-tournament-error");
+  await renderTeamsForTournament();
+  showScreen("screen-create-tournament");
+}
+
+async function renderTeamsForTournament() {
+  const list = document.getElementById("teams-list");
+  list.innerHTML = `<div class="loading">Загружаем</div>`;
+  const { data: teams, error } = await sb.from("teams").select("*").order("name");
+  if (error || !teams) { list.innerHTML = `<div class="error-msg">Ошибка</div>`; return; }
+
+  const teamsWithPlayers = new Set();
+  const { data: allPlayers } = await sb.from("players").select("team_id");
+  if (allPlayers) allPlayers.forEach(p => teamsWithPlayers.add(p.team_id));
+
+  list.innerHTML = "";
+  teams.forEach(t => {
+    const hasPlayers = teamsWithPlayers.has(t.id);
+    const card = document.createElement("div");
+    let cls = "team-card";
+    if (!hasPlayers) cls += " disabled";
+    if (state.creating.chosenTeams.has(t.id)) cls += " chosen";
+    card.className = cls;
+    card.innerHTML = `
+      <div class="tc-short">${t.short}</div>
+      <div class="tc-name">${t.name}</div>
+      ${!hasPlayers ? `<div class="tc-coach">без состава</div>` : ""}
+    `;
+    if (hasPlayers) card.onclick = () => toggleTeamChoice(t.id);
+    list.appendChild(card);
+  });
+
+  document.getElementById("teams-count").textContent = `(${state.creating.chosenTeams.size})`;
+}
+
+function toggleTeamChoice(teamId) {
+  if (state.creating.chosenTeams.has(teamId)) {
+    state.creating.chosenTeams.delete(teamId);
+  } else {
+    state.creating.chosenTeams.add(teamId);
+  }
+  document.querySelectorAll("#teams-list .team-card").forEach(el => el.classList.remove("chosen"));
+  renderTeamsForTournament();
+}
+
+function pickFormat(format) {
+  state.creating.format = format;
+  document.querySelectorAll("#format-grid .list-item").forEach(el => {
+    el.classList.toggle("chosen", el.dataset.format === format);
+  });
+  document.getElementById("league-options").style.display = format === "league" ? "block" : "none";
+}
+
+function pickRounds(rounds) {
+  state.creating.rounds = rounds;
+  document.querySelectorAll("#league-options .chip").forEach(el => {
+    el.classList.toggle("chosen", parseInt(el.dataset.rounds, 10) === rounds);
+  });
+}
+
+async function confirmCreateTournament() {
+  hideError("create-tournament-error");
+  const name = document.getElementById("t-name").value.trim();
+  const { format, rounds, chosenTeams } = state.creating;
+
+  if (!name) return showError("create-tournament-error", "Введите название");
+  if (!format) return showError("create-tournament-error", "Выберите формат");
+  if (chosenTeams.size < 2) return showError("create-tournament-error", "Минимум 2 команды");
+
+  const requiredSizes = { playoff_4: 4, playoff_8: 8, playoff_16: 16 };
+  if (requiredSizes[format] && chosenTeams.size !== requiredSizes[format]) {
+    return showError("create-tournament-error", `Для формата нужно ровно ${requiredSizes[format]} команд`);
+  }
+  if (format === "league" && chosenTeams.size < 3) {
+    return showError("create-tournament-error", "Для чемпионата нужно минимум 3 команды");
+  }
+
+  try {
+    const { data: tour, error } = await sb.from("tournaments").insert({
+      name, format,
+      status: "draft",
+      league_rounds: format === "league" ? rounds : null,
+      double_round: format === "league" ? rounds === 2 : false
+    }).select().single();
+
+    if (error || !tour) throw error;
+
+    const teamIds = Array.from(chosenTeams);
+    const teamRows = teamIds.map(tid => ({ tournament_id: tour.id, team_id: tid }));
+    const { error: err2 } = await sb.from("tournament_teams").insert(teamRows);
+    if (err2) throw err2;
+
+    await generateSchedule(tour.id, format, teamIds, rounds);
+
+    toast("Турнир создан!", true);
+    state.currentTournamentId = tour.id;
+    await viewTournament(tour.id);
+  } catch (e) {
+    console.error(e);
+    showError("create-tournament-error", "Ошибка: " + (e.message || ""));
+  }
+}
+
+async function generateSchedule(tournamentId, format, teamIds, rounds) {
+  const teamStats = await getTeamStrengths(teamIds);
+  const sorted = [...teamStats].sort((a, b) => b.strength - a.strength);
+
+  if (format.startsWith("playoff")) {
+    await generatePlayoff(tournamentId, sorted);
+  } else if (format === "league") {
+    await generateLeague(tournamentId, sorted, rounds);
+  }
+}
+
+async function getTeamStrengths(teamIds) {
+  const { data: players } = await sb.from("players").select("team_id, rating, is_starting").in("team_id", teamIds);
+  const map = {};
+  teamIds.forEach(id => map[id] = { id, ratings: [] });
+  if (players) {
+    players.filter(p => p.is_starting).forEach(p => {
+      if (map[p.team_id]) map[p.team_id].ratings.push(p.rating);
+    });
+  }
+  return teamIds.map(id => {
+    const arr = map[id].ratings;
+    return { id, strength: arr.length ? arr.reduce((s, r) => s + r, 0) / arr.length : 0 };
+  });
+}
+
+async function generatePlayoff(tournamentId, sortedTeams) {
+  const n = sortedTeams.length;
+  const totalRounds = Math.log2(n);
+  const rows = [];
+
+  // Первый раунд: посев 1-й с последним, 2-й с предпоследним и т.д.
+  const pairsFirstRound = [];
+  for (let i = 0; i < n / 2; i++) {
+    const a = sortedTeams[i].id;
+    const b = sortedTeams[n - 1 - i].id;
+    pairsFirstRound.push([a, b]);
+  }
+
+  // Определяем название раунда
+  const firstRoundLabels = {
+    4: "1/2 финала",
+    8: "1/4 финала",
+    16: "1/8 финала"
+  };
+  const firstLabel = firstRoundLabels[n] || "Раунд 1";
+
+  pairsFirstRound.forEach((pair, idx) => {
+    rows.push({
+      tournament_id: tournamentId,
+      round: 1,
+      round_label: firstLabel,
+      home_team_id: pair[0],
+      away_team_id: pair[1],
+      status: "scheduled",
+      stage: "playoff",
+      bracket_position: idx
+    });
+  });
+
+  // Пустые матчи для следующих раундов
+  let matchesInRound = n / 2;
+  let roundNum = 2;
+  let label = nextRoundLabel(firstLabel);
+  while (matchesInRound > 1) {
+    matchesInRound /= 2;
+    for (let i = 0; i < matchesInRound; i++) {
+      rows.push({
+        tournament_id: tournamentId,
+        round: roundNum,
+        round_label: label,
+        home_team_id: null,
+        away_team_id: null,
+        status: "pending",
+        stage: "playoff",
+        bracket_position: i
+      });
+    }
+    roundNum++;
+    label = nextRoundLabel(label);
+  }
+
+  // Финал
+  rows.push({
+    tournament_id: tournamentId,
+    round: roundNum,
+    round_label: "Финал",
+    home_team_id: null,
+    away_team_id: null,
+    status: "pending",
+    stage: "playoff",
+    bracket_position: 0
+  });
+
+  await sb.from("matches").insert(rows);
+}
+
+function nextRoundLabel(current) {
+  if (current === "1/8 финала") return "1/4 финала";
+  if (current === "1/4 финала") return "1/2 финала";
+  if (current === "1/2 финала") return "Финал";
+  return "Следующий раунд";
+}
+
+async function generateLeague(tournamentId, sortedTeams, roundsCount) {
+  const teams = sortedTeams.map(t => t.id);
+  const n = teams.length;
+  const isOdd = n % 2 === 1;
+  const arr = [...teams];
+  if (isOdd) arr.push(null); // «пауза»
+
+  const totalTeams = arr.length;
+  const roundsPerCircle = totalTeams - 1;
+  const matchesPerRound = totalTeams / 2;
+
+  const allRounds = [];
+  const current = [...arr];
+
+  for (let r = 0; r < roundsPerCircle; r++) {
+    const roundMatches = [];
+    for (let m = 0; m < matchesPerRound; m++) {
+      const home = current[m];
+      const away = current[totalTeams - 1 - m];
+      if (home !== null && away !== null) {
+        // Рандомно, кто «дома», кто «в гостях»
+        if (Math.random() < 0.5) roundMatches.push([home, away]);
+        else roundMatches.push([away, home]);
+      }
+    }
+    allRounds.push(roundMatches);
+
+    // Сдвиг: первый остаётся, остальные по кругу
+    const first = current[0];
+    const last = current.pop();
+    current.splice(1, 0, last);
+  }
+
+  const rows = [];
+  let roundNum = 1;
+
+  // Первый круг
+  for (const roundMatches of allRounds) {
+    for (const [home, away] of roundMatches) {
+      rows.push({
+        tournament_id: tournamentId,
+        round: roundNum,
+        round_label: `Тур ${roundNum}`,
+        home_team_id: home,
+        away_team_id: away,
+        status: "scheduled",
+        stage: "league",
+        bracket_position: null
+      });
+    }
+    roundNum++;
+  }
+
+  // Второй круг (если нужно) — те же пары, но хозяева меняются
+  if (roundsCount === 2) {
+    for (const roundMatches of allRounds) {
+      for (const [home, away] of roundMatches) {
+        rows.push({
+          tournament_id: tournamentId,
+          round: roundNum,
+          round_label: `Тур ${roundNum}`,
+          home_team_id: away,
+          away_team_id: home,
+          status: "scheduled",
+          stage: "league",
+          bracket_position: null
+        });
+      }
+      roundNum++;
+    }
+  }
+
+  await sb.from("matches").insert(rows);
+}
+
+/* ================= ПРОСМОТР ТУРНИРА ================= */
+
+async function devMyTournaments() {
+  showScreen("screen-stub");
+  document.getElementById("stub-title").textContent = "Загрузка";
+  const { data, error } = await sb.from("tournaments").select("*").order("created_at", { ascending: false });
+  if (error || !data) {
+    document.getElementById("stub-title").textContent = "Ошибка загрузки";
+    return;
+  }
+
+  const content = document.getElementById("stub-title");
+  const wrap = document.querySelector("#screen-stub .menu-wrap");
+
+  let html = `<h1 class="title-main" style="font-size:1.4rem">Мои турниры</h1>`;
+  if (data.length === 0) {
+    html += `<p class="subtitle">Пока нет турниров</p>`;
+  } else {
+    html = `<h1 class="title-main" style="font-size:1.4rem">Мои турниры</h1><p class="subtitle">${data.length} шт.</p>`;
+    data.forEach(t => {
+      html += `<div class="tournament-card" onclick="viewTournament('${t.id}')">
+        <div class="t-name">${t.name}</div>
+        <div class="t-meta">${formatLabel(t.format)}${t.league_rounds ? ` · ${t.league_rounds} круг(а)` : ""}</div>
+      </div>`;
+    });
+  }
+
+  wrap.innerHTML = html + `
+    <div class="menu-actions" style="margin-top:20px">
+      <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+    </div>
+  `;
+}
+
+function formatLabel(format) {
+  if (format === "playoff_4") return "Плей-офф · 4 команды";
+  if (format === "playoff_8") return "Плей-офф · 8 команд";
+  if (format === "playoff_16") return "Плей-офф · 16 команд";
+  if (format === "league") return "Чемпионат";
+  return format;
+}
+
+async function viewTournament(tournamentId) {
+  state.currentTournamentId = tournamentId;
+  document.getElementById("tv-content").innerHTML = `<div class="loading">Загрузка</div>`;
+  showScreen("screen-tournament-view");
+
+  const { data: tour } = await sb.from("tournaments").select("*").eq("id", tournamentId).single();
+  if (!tour) { document.getElementById("tv-content").innerHTML = `<div class="error-msg">Турнир не найден</div>`; return; }
+
+  document.getElementById("tv-name").textContent = tour.name;
+  document.getElementById("tv-format").textContent = formatLabel(tour.format);
+
+  const { data: matches } = await sb.from("matches").select("*").eq("tournament_id", tournamentId).order("round").order("bracket_position");
+  const { data: teams } = await sb.from("teams").select("*");
+  const teamMap = {};
+  if (teams) teams.forEach(t => teamMap[t.id] = t);
+
+  let html = "";
+  if (tour.format.startsWith("playoff")) {
+    html += renderPlayoffBracket(matches, teamMap);
+  } else if (tour.format === "league") {
+    html += renderLeagueMatches(matches, teamMap);
+  }
+
+  document.getElementById("tv-content").innerHTML = html;
+}
+
+function renderPlayoffBracket(matches, teamMap) {
+  if (!matches || matches.length === 0) return `<div class="info-box">Матчей нет</div>`;
+  const byRound = {};
+  matches.forEach(m => {
+    if (!byRound[m.round]) byRound[m.round] = [];
+    byRound[m.round].push(m);
+  });
+
+  let html = "";
+  Object.keys(byRound).sort((a,b) => a-b).forEach(r => {
+    const roundMatches = byRound[r].sort((a,b) => (a.bracket_position ?? 0) - (b.bracket_position ?? 0));
+    const label = roundMatches[0]?.round_label || `Раунд ${r}`;
+    html += `<div class="bracket-round">
+      <div class="bracket-round-label">${label}</div>`;
+    roundMatches.forEach(m => {
+      const home = teamMap[m.home_team_id]?.short || "—";
+      const away = teamMap[m.away_team_id]?.short || "—";
+      let score = "— : —";
+      if (m.status === "played") score = `${m.home_score} : ${m.away_score}`;
+      else if (m.status === "pending") score = "TBD";
+      else score = "не сыгран";
+      html += `<div class="bracket-match">
+        <div class="bracket-team">${home}</div>
+        <div class="bracket-score">${score}</div>
+        <div class="bracket-team">${away}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  return html;
+}
+
+function renderLeagueMatches(matches, teamMap) {
+  if (!matches || matches.length === 0) return `<div class="info-box">Матчей нет</div>`;
+  const byRound = {};
+  matches.forEach(m => {
+    if (!byRound[m.round]) byRound[m.round] = [];
+    byRound[m.round].push(m);
+  });
+
+  let html = "";
+  Object.keys(byRound).sort((a,b) => a-b).forEach(r => {
+    const roundMatches = byRound[r];
+    const label = roundMatches[0]?.round_label || `Тур ${r}`;
+    html += `<div class="bracket-round">
+      <div class="bracket-round-label">${label}</div>`;
+    roundMatches.forEach(m => {
+      const home = teamMap[m.home_team_id]?.short || "—";
+      const away = teamMap[m.away_team_id]?.short || "—";
+      let score = "не сыгран";
+      if (m.status === "played") score = `${m.home_score} : ${m.away_score}`;
+      html += `<div class="bracket-match">
+        <div class="bracket-team">${home}</div>
+        <div class="bracket-score">${score}</div>
+        <div class="bracket-team">${away}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  return html;
+}
+
+/* ================= ИНИЦИАЛИЗАЦИЯ ================= */
+
+async function init() {
+  if (localStorage.getItem("sml_dev") === "1") {
+    state.isDev = true;
+    showScreen("screen-devmenu");
+    return;
+  }
+  const { data } = await sb.auth.getSession();
+  if (data.session) {
+    state.user = data.session.user;
+    const ok = await loadProfile();
+    if (ok && state.profile.team_id) {
+      await loadTeam(state.profile.team_id);
+      renderCareerMenu();
+      showScreen("screen-career");
+      return;
+    }
+    if (ok && !state.profile.team_id) {
+      await renderTeamSelectGrid();
+      showScreen("screen-team-select");
+      return;
+    }
+  }
+  showScreen("screen-main");
+}
+
+init();
+</script>
+</body>
+      </html>
