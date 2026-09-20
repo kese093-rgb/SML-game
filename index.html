@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SML GAME — Онлайн-лига</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg-deep: #050b1a;
+    --bg-mid: #0a1832;
+    --blue-main: #2d8cf0;
+    --blue-dark: #0d2b5c;
+    --blue-line: #1a4a8a;
+    --gold: #febe10;
+    --text: #eaf4ff;
+    --text-dim: #7ba3d4;
+    --green: #4ade80;
+    --danger: #ef4444;
+  }
+
+  html, body {
+    min-height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    color: var(--text);
+    background: linear-gradient(180deg, var(--bg-mid) 0%, var(--bg-deep) 100%);
+    background-attachment: fixed;
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .screen {
+    display: none;
+    padding: 24px 16px 60px;
+    min-height: 100vh;
+    animation: fadeIn .35s ease;
+  }
+
+  .screen.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .title-main {
+    font-size: clamp(1.6rem, 6vw, 2.6rem);
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-align: center;
+    text-transform: uppercase;
+    color: #ffffff;
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: var(--text-dim);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    font-size: .7rem;
+    margin-bottom: 24px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px 24px;
+    border: 2px solid var(--blue-line);
+    border-radius: 12px;
+    font-size: .95rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all .2s ease;
+    background: linear-gradient(180deg, rgba(13,43,92,0.9) 0%, rgba(5,15,35,0.9) 100%);
+    color: var(--text);
+    text-transform: uppercase;
+    width: 100%;
+  }
+
+  .btn:hover:not(:disabled) {
+    border-color: var(--blue-main);
+    transform: translateY(-2px);
+  }
+
+  .btn:active:not(:disabled) { transform: translateY(0); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+
+  .btn.primary {
+    background: linear-gradient(180deg, #1e5fb8 0%, #0d2b5c 100%);
+    border-color: var(--blue-main);
+  }
+
+  .btn.primary:hover:not(:disabled) {
+    background: linear-gradient(180deg, #2d7dd8 0%, #123e78 100%);
+  }
+
+  .btn.secondary {
+    background: transparent;
+    border: 2px solid var(--blue-line);
+    color: var(--text-dim);
+  }
+
+  .btn.secondary:hover:not(:disabled) {
+    border-color: var(--blue-main);
+    color: var(--text);
+  }
+
+  .btn.danger {
+    background: linear-gradient(180deg, #8b1010 0%, #4a0808 100%);
+    border-color: #ef4444;
+  }
+
+  .btn.small { padding: 8px 14px; font-size: .75rem; width: auto; }
+
+  .menu-wrap { max-width: 480px; margin: 0 auto; text-align: center; }
+  .menu-actions { display: flex; flex-direction: column; gap: 14px; margin-top: 30px; }
+
+  .form-group { max-width: 480px; margin: 0 auto 14px; text-align: left; }
+  .form-label {
+    display: block;
+    font-size: .7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  .form-input {
+    width: 100%;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 2px solid var(--blue-line);
+    background: rgba(5,15,35,0.7);
+    color: var(--text);
+    font-size: 1rem;
+    outline: none;
+    transition: border-color .2s ease;
+  }
+  .form-input:focus {
+    border-color: var(--blue-main);
+  }
+
+  .error-msg {
+    max-width: 480px;
+    margin: 10px auto;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(239,68,68,0.15);
+    color: #fecaca;
+    border-left: 3px solid var(--danger);
+    font-size: .82rem;
+    text-align: left;
+  }
+
+  .info-box {
+    max-width: 480px;
+    margin: 0 auto 16px;
+    padding: 14px 16px;
+    border-radius: 10px;
+    background: rgba(45,140,240,0.1);
+    border-left: 3px solid var(--blue-main);
+    color: var(--text-dim);
+    font-size: .82rem;
+    text-align: left;
+    line-height: 1.5;
+  }
+
+  .team-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
+    max-width: 900px;
+    margin: 16px auto 0;
+  }
+
+  .team-card {
+    padding: 14px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    background: linear-gradient(135deg, rgba(13,43,92,0.9) 0%, rgba(5,15,35,0.9) 100%);
+    border: 2px solid var(--blue-line);
+    text-align: center;
+    transition: all .2s ease;
+  }
+
+  .team-card:hover:not(.disabled):not(.taken) {
+    transform: translateY(-3px);
+    border-color: var(--blue-main);
+  }
+
+  .team-card.taken, .team-card.disabled {
+    opacity: .35;
+    cursor: not-allowed;
+    filter: grayscale(1);
+  }
+
+  .team-card.chosen {
+    border-color: var(--blue-main);
+    background: linear-gradient(135deg, rgba(30,95,184,0.9), rgba(13,43,92,0.9));
+  }
+
+  .team-card .tc-short {
+    font-size: 1.5rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    color: #ffffff;
+  }
+
+  .team-card .tc-name {
+    font-size: .7rem;
+    font-weight: 700;
+    margin-top: 4px;
+    color: var(--text);
+  }
+
+  .team-card .tc-coach {
+    font-size: .62rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+    letter-spacing: 1px;
+  }
+
+  .career-header {
+    max-width: 480px;
+    margin: 0 auto 20px;
+    padding: 18px 20px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.8), rgba(5,15,35,0.8));
+    border: 2px solid var(--blue-line);
+    text-align: center;
+  }
+
+  .career-header .ch-nick {
+    font-size: .72rem;
+    color: var(--text-dim);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .career-header .ch-nick b { color: #fff; }
+  .career-header .ch-team {
+    font-size: 1.3rem;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  .menu-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .menu-grid .btn { padding: 18px 8px; font-size: .75rem; }
+
+  .dev-badge {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    background: var(--gold);
+    color: #000;
+    font-weight: 900;
+    font-size: .65rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    background: #b91c1c;
+    color: #fff;
+    padding: 14px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    transition: transform .3s ease;
+    z-index: 9999;
+    max-width: 90vw;
+    text-align: center;
+    font-size: .88rem;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { background: #15803d; }
+
+  .loading {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-dim);
+    font-size: .85rem;
+    letter-spacing: 2px;
+  }
+
+  .squad-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  @media (max-width: 640px) { .squad-columns { grid-template-columns: 1fr; } }
+
+  .squad-col-title {
+    font-size: .7rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    border-bottom: 2px solid var(--blue-line);
+    padding-bottom: 6px;
+    text-align: left;
+  }
+
+  .squad-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .player-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.6), rgba(5,15,35,0.6));
+    border: 1px solid var(--blue-line);
+    cursor: pointer;
+    user-select: none;
+    transition: border-color .2s ease;
+  }
+
+  .player-card:hover { border-color: var(--blue-main); }
+
+  .player-card.selected {
+    border-color: var(--blue-main);
+    background: linear-gradient(180deg, rgba(45,140,240,0.3), rgba(13,43,92,0.7));
+  }
+
+  .player-pos {
+    min-width: 40px;
+    font-weight: 900;
+    font-size: .65rem;
+    padding: 4px 6px;
+    border-radius: 5px;
+    background: rgba(5,15,35,0.9);
+    border: 1px solid var(--blue-line);
+    text-align: center;
+    color: #fff;
+    letter-spacing: 1px;
+  }
+
+  .player-main { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .player-name { font-size: .82rem; font-weight: 600; }
+
+  .energy-bar {
+    height: 4px;
+    background: rgba(5,15,35,0.9);
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid var(--blue-line);
+  }
+
+  .energy-bar-fill { height: 100%; border-radius: 2px; }
+  .energy-bar-fill.good { background: #4ade80; }
+  .energy-bar-fill.mid { background: #fbbf24; }
+  .energy-bar-fill.bad { background: #ef4444; }
+
+  .player-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    min-width: 44px;
+  }
+
+  .player-rating {
+    font-weight: 900;
+    font-size: .9rem;
+    padding: 2px 7px;
+    border-radius: 6px;
+    background: rgba(5,15,35,0.9);
+    border: 1px solid var(--blue-line);
+  }
+
+  .player-energy-text {
+    font-size: .6rem;
+    color: var(--text-dim);
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .rating-gold { color: var(--gold); }
+  .rating-green { color: var(--green); }
+  .rating-gray { color: #9ca3af; }
+
+  .squad-hint {
+    max-width: 900px;
+    margin: 16px auto 0;
+    padding: 12px 16px;
+    border-radius: 10px;
+    background: rgba(5,15,35,0.6);
+    font-size: .78rem;
+    color: var(--text-dim);
+    border-left: 3px solid var(--blue-main);
+    text-align: left;
+  }
+
+  .tactic-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-width: 900px;
+    margin: 20px auto 0;
+  }
+  @media (max-width: 640px) { .tactic-grid { grid-template-columns: 1fr; } }
+
+  .tactic-card {
+    padding: 20px 14px;
+    border-radius: 14px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.7), rgba(5,15,35,0.7));
+    border: 2px solid var(--blue-line);
+    cursor: pointer;
+    text-align: center;
+    transition: all .2s ease;
+  }
+
+  .tactic-card:hover { transform: translateY(-3px); border-color: var(--blue-main); }
+
+  .tactic-card.active {
+    border-color: var(--blue-main);
+    background: linear-gradient(180deg, rgba(30,95,184,0.6), rgba(5,15,35,0.8));
+  }
+
+  .tactic-card .tactic-icon { font-size: 2rem; margin-bottom: 8px; }
+  .tactic-card .tactic-name {
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .tactic-card .tactic-desc {
+    font-size: .72rem;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+
+  .list-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px;
+    max-width: 900px;
+    margin: 16px auto 0;
+  }
+
+  .list-item {
+    padding: 14px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.7), rgba(5,15,35,0.7));
+    border: 2px solid var(--blue-line);
+    cursor: pointer;
+    text-align: center;
+    transition: all .2s ease;
+  }
+
+  .list-item:hover { border-color: var(--blue-main); }
+
+  .list-item.chosen {
+    border-color: var(--blue-main);
+    background: linear-gradient(180deg, rgba(45,140,240,0.4), rgba(13,43,92,0.8));
+  }
+
+  .list-item .li-title { font-size: .9rem; font-weight: 900; letter-spacing: 1.5px; color: #fff; }
+  .list-item .li-sub { font-size: .7rem; color: var(--text-dim); margin-top: 4px; }
+
+  .section-title {
+    max-width: 900px;
+    margin: 20px auto 8px;
+    font-size: .72rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    text-align: left;
+    border-bottom: 2px solid var(--blue-line);
+    padding-bottom: 6px;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-width: 900px;
+    margin: 12px auto 0;
+  }
+
+  .chip {
+    padding: 10px 18px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.7), rgba(5,15,35,0.7));
+    border: 2px solid var(--blue-line);
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    color: var(--text-dim);
+    transition: all .2s ease;
+  }
+
+  .chip:hover { border-color: var(--blue-main); color: var(--text); }
+
+  .chip.chosen {
+    background: linear-gradient(180deg, #2d8cf0, #1e5fb8);
+    color: #fff;
+    border-color: var(--blue-main);
+    font-weight: 900;
+  }
+
+  .tournament-card {
+    max-width: 900px;
+    margin: 10px auto;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.7), rgba(5,15,35,0.7));
+    border: 2px solid var(--blue-line);
+    cursor: pointer;
+    transition: all .2s ease;
+  }
+
+  .tournament-card:hover { border-color: var(--blue-main); transform: translateX(4px); }
+
+  .tournament-card .t-name { font-size: 1rem; font-weight: 900; letter-spacing: 1.5px; color: #fff; }
+  .tournament-card .t-meta { font-size: .72rem; color: var(--text-dim); margin-top: 4px; letter-spacing: 1px; }
+
+  .bracket-round { max-width: 900px; margin: 16px auto; }
+
+  .bracket-round-label {
+    font-size: .68rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+
+  .bracket-match {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.6), rgba(5,15,35,0.6));
+    border: 1px solid var(--blue-line);
+    font-weight: 700;
+    font-size: .8rem;
+    margin-bottom: 6px;
+    cursor: pointer;
+    transition: border-color .2s ease;
+  }
+
+  .bracket-match:hover { border-color: var(--blue-main); }
+
+  .bracket-team { flex: 1; text-align: center; font-size: .78rem; letter-spacing: 1px; }
+
+  .bracket-score {
+    font-size: .82rem;
+    color: #fff;
+    min-width: 50px;
+    text-align: center;
+    font-weight: 900;
+  }
+
+  .bracket-team.win { color: #fff; font-weight: 900; }
+  .bracket-team.lose { color: var(--text-dim); opacity: .55; }
+
+  .table-standings {
+    width: 100%;
+    max-width: 900px;
+    margin: 16px auto;
+    border-collapse: collapse;
+    font-size: .76rem;
+  }
+
+  .table-standings th {
+    text-align: left;
+    padding: 8px 6px;
+    color: var(--text-dim);
+    font-size: .62rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border-bottom: 2px solid var(--blue-line);
+  }
+
+  .table-standings td {
+    padding: 8px 6px;
+    border-bottom: 1px solid rgba(45,140,240,0.15);
+  }
+
+  .table-standings td:first-child { font-weight: 900; color: #fff; }
+
+  .time-picker-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    margin: 10px auto;
+    max-width: 900px;
+    flex-wrap: wrap;
+  }
+
+  .time-picker-row input {
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 2px solid var(--blue-line);
+    background: rgba(5,15,35,0.8);
+    color: var(--text);
+    font-size: .85rem;
+    outline: none;
+  }
+
+  .time-picker-row input:focus { border-color: var(--blue-main); }
+
+  .time-info {
+    max-width: 900px;
+    margin: 8px auto;
+    text-align: center;
+    font-size: .75rem;
+    color: var(--text-dim);
+    letter-spacing: 1px;
+  }
+  .time-info b { color: #fff; }
+
+  .match-comment {
+    max-width: 900px;
+    margin: 8px auto;
+    padding: 12px 14px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(13,43,92,0.5), rgba(5,15,35,0.5));
+    border-left: 3px solid var(--blue-line);
+    font-size: .82rem;
+    line-height: 1.45;
+  }
+
+  .match-comment.goal {
+    border-left-color: var(--blue-main);
+    background: linear-gradient(180deg, rgba(30,95,184,0.25), rgba(5,15,35,0.5));
+  }
+
+  .match-comment.save { border-left-color: var(--green); }
+  .match-comment.info { border-left-color: var(--gold); }
+
+  .match-comment .mc-minute {
+    font-weight: 900;
+    color: #fff;
+    margin-right: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="screen-main" class="screen active">
+  <h1 class="title-main">SML GAME</h1>
+  <p class="subtitle">Онлайн-лига</p>
+  <div class="menu-wrap">
+    <div class="menu-actions">
+      <button class="btn primary" onclick="enterCareer()">Карьера</button>
+      <button class="btn secondary" onclick="showScreen('screen-devcode')">Аккаунт разработчика</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-devcode" class="screen">
+  <h1 class="title-main" style="font-size:1.6rem">Разработчик</h1>
+  <p class="subtitle">Введите код доступа</p>
+  <div class="form-group">
+    <label class="form-label">Секретный код</label>
+    <input id="dev-code-input" class="form-input" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
+  </div>
+  <div id="devcode-error" class="error-msg" style="display:none"></div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn primary" onclick="checkDevCode()">Войти</button>
+      <button class="btn secondary" onclick="showScreen('screen-main')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-devmenu" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.6rem">Разработчик</h1>
+  <p class="subtitle">Управление лигой</p>
+  <div class="menu-wrap">
+    <div class="menu-actions">
+      <button class="btn primary" onclick="devCreateTournament()">Создать турнир</button>
+      <button class="btn primary" onclick="devMyTournaments()">Мои турниры</button>
+      <button class="btn secondary" onclick="devTeamsManage()">Управление командами</button>
+      <button class="btn danger" onclick="devWipeGame()">Очистить всю игру</button>
+      <button class="btn secondary" onclick="devLogout()">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-wipe" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.6rem;color:#ef4444">Очистка игры</h1>
+  <p class="subtitle">Удалить все данные</p>
+  <div class="info-box" style="border-left-color:#ef4444;background:rgba(239,68,68,0.15);color:#fecaca">
+    ⚠️ Будут удалены: <b>все аккаунты тренеров, турниры, матчи, вся статистика</b>.<br><br>
+    Команды станут свободными. Составы вернутся к заводским. Энергия → 100.<br><br>
+    <b>Необратимо.</b>
+  </div>
+  <div class="form-group">
+    <label class="form-label">Код удаления</label>
+    <input id="wipe-code" class="form-input" type="password" inputmode="numeric" placeholder="••••" autocomplete="off">
+  </div>
+  <div id="wipe-error" class="error-msg" style="display:none"></div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn danger" onclick="confirmWipe()">УДАЛИТЬ ВСЁ</button>
+      <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-create-tournament" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.4rem">Создать турнир</h1>
+  <p class="subtitle">Настройка</p>
+
+  <div class="form-group">
+    <label class="form-label">Название турнира</label>
+    <input id="t-name" class="form-input" type="text" placeholder="Летний кубок" maxlength="30">
+  </div>
+
+  <div class="section-title">Формат</div>
+  <div class="list-grid" id="format-grid">
+    <div class="list-item" data-format="playoff_4" onclick="pickFormat('playoff_4')">
+      <div class="li-title">Плей-офф</div><div class="li-sub">4 команды</div>
+    </div>
+    <div class="list-item" data-format="playoff_8" onclick="pickFormat('playoff_8')">
+      <div class="li-title">Плей-офф</div><div class="li-sub">8 команд</div>
+    </div>
+    <div class="list-item" data-format="playoff_16" onclick="pickFormat('playoff_16')">
+      <div class="li-title">Плей-офф</div><div class="li-sub">16 команд</div>
+    </div>
+    <div class="list-item" data-format="league" onclick="pickFormat('league')">
+      <div class="li-title">Чемпионат</div><div class="li-sub">1 или 2 круга</div>
+    </div>
+  </div>
+
+  <div id="league-options" style="display:none">
+    <div class="section-title">Кругов в чемпионате</div>
+    <div class="chip-row">
+      <div class="chip" data-rounds="1" onclick="pickRounds(1)">1 круг</div>
+      <div class="chip" data-rounds="2" onclick="pickRounds(2)">2 круга</div>
+    </div>
+  </div>
+
+  <div id="playoff-options" style="display:none">
+    <div class="section-title">Матчей на стадиях плей-офф</div>
+    <div class="chip-row">
+      <div class="chip" data-legs="1" onclick="pickLegs(1)">1 матч</div>
+      <div class="chip" data-legs="2" onclick="pickLegs(2)">2 матча (как в ЛЧ)</div>
+    </div>
+    <div class="info-box" style="margin-top:12px">
+      Финал всегда играется 1 матчем.
+    </div>
+  </div>
+
+  <div class="section-title">Команды <span id="teams-count" style="color:#fff">(0)</span></div>
+  <div id="teams-list" class="team-grid"></div>
+
+  <div id="create-tournament-error" class="error-msg" style="display:none"></div>
+
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn primary" onclick="confirmCreateTournament()">Создать турнир</button>
+      <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-tournament-view" class="screen">
+  <div class="dev-badge">DEV</div>
+  <h1 class="title-main" style="font-size:1.4rem" id="tv-name">Турнир</h1>
+  <p class="subtitle" id="tv-format">—</p>
+  <div id="tv-content" class="loading">Загрузка</div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="devMyTournaments()">← Мои турниры</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-auth" class="screen">
+  <h1 class="title-main" style="font-size:1.6rem">Карьера</h1>
+  <p class="subtitle" id="auth-subtitle">Регистрация</p>
+  <div class="info-box" id="auth-info" style="display:none">
+    Аккаунт не найден. Введите ник и пароль для регистрации.
+  </div>
+  <div class="form-group">
+    <label class="form-label">Ваш ник</label>
+    <input id="auth-nick" class="form-input" type="text" placeholder="Ivan" maxlength="20" autocomplete="off">
+  </div>
+  <div class="form-group">
+    <label class="form-label">Пароль</label>
+    <input id="auth-pass" class="form-input" type="password" placeholder="минимум 4 символа" autocomplete="off">
+  </div>
+  <div id="auth-error" class="error-msg" style="display:none"></div>
+  <div class="menu-wrap" style="margin-top:16px">
+    <div class="menu-actions">
+      <button class="btn primary" id="auth-btn" onclick="submitAuth()">Войти</button>
+      <button class="btn secondary" onclick="showScreen('screen-main')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-team-select" class="screen">
+  <h1 class="title-main" style="font-size:1.4rem">Выбери команду</h1>
+  <p class="subtitle">Свободные клубы</p>
+  <div id="team-select-grid" class="team-grid"></div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="logoutCareer()">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-career" class="screen">
+  <div class="career-header">
+    <div class="ch-nick">Тренер: <b id="career-nick">—</b></div>
+    <div class="ch-team" id="career-team">—</div>
+  </div>
+  <div class="menu-grid">
+    <button class="btn primary" onclick="openSquad()">Состав</button>
+    <button class="btn primary" onclick="openTactic()">Тактика</button>
+    <button class="btn primary" onclick="openCareerTournaments()">Турниры</button>
+    <button class="btn primary" onclick="careerStub('Трансферы')">Трансферы</button>
+  </div>
+  <div class="menu-wrap" style="margin-top:14px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="careerStub('Товарняк')">Товарняк</button>
+      <button class="btn danger" onclick="leaveClub()">Покинуть клуб</button>
+      <button class="btn secondary" onclick="logoutCareer()">Выйти из аккаунта</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-squad" class="screen">
+  <h1 class="title-main" style="font-size:1.3rem">Состав</h1>
+  <p class="subtitle" id="squad-team-name">—</p>
+  <div id="squad-content" class="loading">Загрузка</div>
+  <div class="squad-hint">💡 Клик по игроку основы → клик по замене — поменяются. Клик по двум игрокам основы — обмен.</div>
+  <div class="menu-wrap" style="margin-top:18px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-career')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-tactic" class="screen">
+  <h1 class="title-main" style="font-size:1.3rem">Тактика</h1>
+  <p class="subtitle">Стиль игры</p>
+  <div class="tactic-grid">
+    <div class="tactic-card" data-tactic="attack" onclick="pickTactic('attack')">
+      <div class="tactic-icon">⚔️</div>
+      <div class="tactic-name">Атака</div>
+      <div class="tactic-desc">+20% к голам, +20% к пропущенным.</div>
+    </div>
+    <div class="tactic-card" data-tactic="balance" onclick="pickTactic('balance')">
+      <div class="tactic-icon">⚖️</div>
+      <div class="tactic-name">Баланс</div>
+      <div class="tactic-desc">Нейтрально. Без бонусов и штрафов.</div>
+    </div>
+    <div class="tactic-card" data-tactic="defense" onclick="pickTactic('defense')">
+      <div class="tactic-icon">🛡️</div>
+      <div class="tactic-name">Защита</div>
+      <div class="tactic-desc">−20% к голам, −20% к пропущенным.</div>
+    </div>
+  </div>
+  <div class="menu-wrap" style="margin-top:20px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-career')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-my-tournaments" class="screen">
+  <h1 class="title-main" style="font-size:1.3rem">Мои турниры</h1>
+  <p class="subtitle">Участие</p>
+  <div id="my-tournaments-content" class="loading">Загрузка</div>
+  <div class="menu-wrap" style="margin-top:18px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-career')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-coach-tournament" class="screen">
+  <h1 class="title-main" style="font-size:1.3rem" id="ct-name">Турнир</h1>
+  <p class="subtitle" id="ct-format">—</p>
+  <div id="ct-content" class="loading">Загрузка</div>
+  <div class="menu-wrap" style="margin-top:18px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="openCareerTournaments()">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-match-view" class="screen">
+  <h1 class="title-main" style="font-size:1.3rem" id="mv-title">Матч</h1>
+  <p class="subtitle" id="mv-sub">—</p>
+  <div id="mv-content" class="loading">Загрузка</div>
+  <div class="menu-wrap" style="margin-top:18px">
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="backFromMatchView()">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="screen-stub" class="screen">
+  <div class="dev-badge">DEV</div>
+  <div class="menu-wrap">
+    <h1 class="title-main" style="font-size:1.5rem" id="stub-title">В разработке</h1>
+    <p class="subtitle">Скоро</p>
+    <div class="menu-actions">
+      <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://mrnarodofflopdcnyjyf.supabase.co";
+const SUPABASE_KEY = "sb_publishable_9XmNuVIAq2vEMAm8MR3PSQ_p8fB1J3T";
+const DEV_CODE = "1717";
+const WIPE_CODE = "1616";
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const STARTING_POSITIONS = ["ЛВ","НАП","ПВ","ЦАП","ЦП","ЦП","ЛЗ","ЦЗ","ЦЗ","ПЗ","ВРТ"];
+const BENCH_POSITIONS = ["НАП","ЦП","ЦЗ","ВРТ"];
+
+const ENERGY_PENALTY_PER_POINT = 0.15;
+const POST_MATCH_ENERGY_BONUS = 2;
+const NOT_PLAYED_ENERGY_BONUS = 15;
+const GK_FULL_MATCH_COST = 1;
+
+const state = {
+  user: null, profile: null, team: null, isDev: false,
+  squadPlayers: [], selectedPlayer: null,
+  creating: { name: "", format: null, rounds: 1, legs: 1, chosenTeams: new Set() },
+  currentTournamentId: null,
+  currentMatchId: null,
+  backTarget: "screen-coach-tournament"
+};
+
+function showScreen(id) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  const el = document.getElementById(id);
+  if (el) el.classList.add("active");
+  window.scrollTo({ top: 0 });
+}
+function toast(msg, isSuccess = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.toggle("success", isSuccess);
+  t.classList.add("show");
+  clearTimeout(toast._tid);
+  toast._tid = setTimeout(() => t.classList.remove("show"), 2600);
+}
+function showError(elId, msg) { const el = document.getElementById(elId); el.textContent = msg; el.style.display = "block"; }
+function hideError(elId) { const el = document.getElementById(elId); el.style.display = "none"; }
+function energyClass(e) { if (e >= 70) return "good"; if (e >= 40) return "mid"; return "bad"; }
+function ratingClass(r) { if (r >= 90) return "rating-gold"; if (r >= 85) return "rating-green"; return "rating-gray"; }
+function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function formatLabel(format) {
+  if (format === "playoff_4") return "Плей-офф · 4 команды";
+  if (format === "playoff_8") return "Плей-офф · 8 команд";
+  if (format === "playoff_16") return "Плей-офф · 16 команд";
+  if (format === "league") return "Чемпионат";
+  return format;
+}
+function formatDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// Транслитерация для email
+function nickToEmail(nick) {
+  const map = {
+    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"e","ж":"zh","з":"z",
+    "и":"i","й":"y","к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r",
+    "с":"s","т":"t","у":"u","ф":"f","х":"h","ц":"ts","ч":"ch","ш":"sh","щ":"sch",
+    "ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya"," ":"_"
+  };
+  const translit = nick.trim().toLowerCase().split("").map(ch => map[ch] !== undefined ? map[ch] : ch).join("");
+  const safe = translit.replace(/[^a-z0-9_]/g, "");
+  return (safe || "user") + "@sml.local";
+}
+
+async function enterCareer() {
+  const { data: sessionData } = await sb.auth.getSession();
+  if (sessionData.session) {
+    state.user = sessionData.session.user;
+    const loaded = await loadProfile();
+    if (loaded) {
+      if (state.profile.team_id) {
+        await loadTeam(state.profile.team_id);
+        renderCareerMenu();
+        showScreen("screen-career");
+      } else {
+        await renderTeamSelectGrid();
+        showScreen("screen-team-select");
+      }
+      return;
+    }
+  }
+  prepareAuthForm();
+}
+function prepareAuthForm() {
+  document.getElementById("auth-nick").value = "";
+  document.getElementById("auth-pass").value = "";
+  hideError("auth-error");
+  document.getElementById("auth-info").style.display = "block";
+  document.getElementById("auth-btn").textContent = "Зарегистрироваться";
+  document.getElementById("auth-subtitle").textContent = "Регистрация тренера";
+  showScreen("screen-auth");
+}
+async function submitAuth() {
+  hideError("auth-error");
+  // Один аккаунт на устройство
+  const savedAccount = localStorage.getItem("sml_account");
+  if (savedAccount) {
+    return showError("auth-error", "На этом устройстве уже есть аккаунт «" + savedAccount + "». Разработчик должен очистить игру, чтобы создать новый.");
+  }
+  const nick = document.getElementById("auth-nick").value.trim();
+  const pass = document.getElementById("auth-pass").value;
+  if (nick.length < 2) return showError("auth-error", "Ник минимум 2 символа");
+  if (!/^[a-zA-Zа-яА-Я0-9_ ]+$/.test(nick)) return showError("auth-error", "Только буквы, цифры, _");
+  if (pass.length < 4) return showError("auth-error", "Пароль минимум 4 символа");
+  const email = nickToEmail(nick);
+  const btn = document.getElementById("auth-btn");
+  btn.disabled = true;
+  try {
+    let { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      const signUp = await sb.auth.signUp({ email, password: pass });
+      if (signUp.error) throw signUp.error;
+      data = signUp.data;
+      await sb.from("profiles").insert({ id: data.user.id, nickname: nick, role: "coach" });
+    }
+    state.user = data.user;
+    const ok = await loadProfile();
+    if (!ok) throw new Error("Не удалось загрузить профиль");
+    if (state.profile.team_id) {
+      await loadTeam(state.profile.team_id);
+      renderCareerMenu();
+      showScreen("screen-career");
+    } else {
+      await renderTeamSelectGrid();
+      showScreen("screen-team-select");
+    }
+    // Запоминаем, что на этом устройстве создан аккаунт
+    localStorage.setItem("sml_account", state.profile.nickname);
+  } catch (e) {
+    if (e.message && e.message.includes("Invalid login")) showError("auth-error", "Неверный ник или пароль");
+    else if (e.message && e.message.includes("User already registered")) showError("auth-error", "Этот ник занят");
+    else showError("auth-error", "Ошибка: " + (e.message || ""));
+  } finally { btn.disabled = false; }
+}
+async function loadProfile() {
+  if (!state.user) return false;
+  const { data, error } = await sb.from("profiles").select("*").eq("id", state.user.id).single();
+  if (error || !data) return false;
+  state.profile = data;
+  return true;
+}
+async function loadTeam(teamId) {
+  const { data, error } = await sb.from("teams").select("*").eq("id", teamId).single();
+  if (!error && data) state.team = data;
+}
+async function renderTeamSelectGrid() {
+  const grid = document.getElementById("team-select-grid");
+  grid.innerHTML = `<div class="loading">Загружаем</div>`;
+  const { data: teams, error } = await sb.from("teams").select("*").order("name");
+  if (error || !teams) { grid.innerHTML = `<div class="error-msg">Ошибка</div>`; return; }
+  const teamsWithPlayers = new Set();
+  const { data: allPlayers } = await sb.from("players").select("team_id");
+  if (allPlayers) allPlayers.forEach(p => teamsWithPlayers.add(p.team_id));
+  grid.innerHTML = "";
+  teams.forEach(t => {
+    const hasPlayers = teamsWithPlayers.has(t.id);
+    const card = document.createElement("div");
+    let cls = "team-card";
+    if (!t.is_free) cls += " taken";
+    else if (!hasPlayers) cls += " disabled";
+    card.className = cls;
+    card.innerHTML = `
+      <div class="tc-short">${t.short}</div>
+      <div class="tc-name">${t.name}</div>
+      ${!t.is_free ? `<div class="tc-coach">занята</div>` : ""}
+      ${t.is_free && !hasPlayers ? `<div class="tc-coach">в разработке</div>` : ""}
+    `;
+    if (t.is_free && hasPlayers) card.onclick = () => pickTeam(t.id);
+    grid.appendChild(card);
+  });
+}
+async function pickTeam(teamId) {
+  try {
+    const { data, error } = await sb.from("teams").update({ coach_id: state.user.id, is_free: false }).eq("id", teamId).eq("is_free", true).select().single();
+    if (error || !data) { toast("Команду уже заняли"); await renderTeamSelectGrid(); return; }
+    await sb.from("profiles").update({ team_id: teamId }).eq("id", state.user.id);
+    state.profile.team_id = teamId;
+    state.team = data;
+    toast("Команда выбрана!", true);
+    renderCareerMenu();
+    showScreen("screen-career");
+  } catch (e) { toast("Ошибка"); }
+}
+function renderCareerMenu() {
+  document.getElementById("career-nick").textContent = state.profile.nickname;
+  document.getElementById("career-team").textContent = state.team ? state.team.name : "—";
+}
+function careerStub(name) { toast(`${name}: скоро`); }
+async function leaveClub() {
+  if (!confirm("Покинуть клуб?")) return;
+  try {
+    await sb.from("teams").update({ coach_id: null, is_free: true }).eq("id", state.team.id);
+    await sb.from("profiles").update({ team_id: null }).eq("id", state.user.id);
+    state.profile.team_id = null; state.team = null;
+    toast("Вы покинули клуб", true);
+    await renderTeamSelectGrid();
+    showScreen("screen-team-select");
+  } catch (e) { toast("Ошибка"); }
+}
+async function logoutCareer() {
+  await sb.auth.signOut();
+  state.user = null; state.profile = null; state.team = null;
+  toast("Вы вышли", true);
+  showScreen("screen-main");
+}
+async function openSquad() {
+  document.getElementById("squad-team-name").textContent = state.team ? state.team.name : "";
+  document.getElementById("squad-content").innerHTML = `<div class="loading">Загрузка</div>`;
+  showScreen("screen-squad");
+  const { data, error } = await sb.from("players").select("*").eq("team_id", state.team.id);
+  if (error || !data) { document.getElementById("squad-content").innerHTML = `<div class="error-msg">Ошибка</div>`; return; }
+  const starting = STARTING_POSITIONS.map(pos => data.find(p => p.is_starting && p.pos === pos)).filter(Boolean);
+  const bench = BENCH_POSITIONS.map(pos => data.find(p => !p.is_starting && p.pos === pos)).filter(Boolean);
+  state.squadPlayers = { starting, bench };
+  state.selectedPlayer = null;
+  renderSquad();
+}
+function renderSquad() {
+  const { starting, bench } = state.squadPlayers;
+  const startHtml = starting.map((p, i) => buildPlayerCardHtml(p, "starting", i)).join("");
+  const benchHtml = bench.map((p, i) => buildPlayerCardHtml(p, "bench", i)).join("");
+  document.getElementById("squad-content").innerHTML = `
+    <div class="squad-columns">
+      <div><div class="squad-col-title">Основной состав (11)</div>
+        <div class="squad-list">${startHtml}</div></div>
+      <div><div class="squad-col-title">Замены (4)</div>
+        <div class="squad-list">${benchHtml}</div></div>
+    </div>`;
+  document.querySelectorAll("#squad-content .player-card").forEach(el => {
+    const list = el.dataset.list;
+    const index = parseInt(el.dataset.index, 10);
+    el.onclick = () => onPlayerClick(list, index);
+  });
+}
+function buildPlayerCardHtml(p, list, index) {
+  const sel = state.selectedPlayer;
+  const isSelected = sel && sel.list === list && sel.index === index;
+  const energy = Math.max(0, Math.min(100, p.energy ?? 100));
+  const eCls = energyClass(energy);
+  return `
+    <div class="player-card ${isSelected ? "selected" : ""}" data-list="${list}" data-index="${index}">
+      <span class="player-pos">${p.pos}</span>
+      <div class="player-main">
+        <span class="player-name">${p.name}</span>
+        <div class="energy-bar"><div class="energy-bar-fill ${eCls}" style="width:${energy}%"></div></div>
+      </div>
+      <div class="player-stats">
+        <span class="player-rating ${ratingClass(p.rating)}">${p.rating}</span>
+        <span class="player-energy-text">${Math.round(energy)}%</span>
+      </div>
+    </div>`;
+}
+function onPlayerClick(list, index) {
+  const sel = state.selectedPlayer;
+  if (!sel) { state.selectedPlayer = { list, index }; renderSquad(); return; }
+  if (sel.list === list && sel.index === index) { state.selectedPlayer = null; renderSquad(); return; }
+  swapPlayers(sel, { list, index });
+  state.selectedPlayer = null;
+  renderSquad();
+}
+async function swapPlayers(a, b) {
+  const { starting, bench } = state.squadPlayers;
+  const listA = a.list === "starting" ? starting : bench;
+  const listB = b.list === "starting" ? starting : bench;
+  const playerA = listA[a.index];
+  const playerB = listB[b.index];
+  const slotPosA = a.list === "starting" ? STARTING_POSITIONS[a.index] : BENCH_POSITIONS[a.index];
+  const slotPosB = b.list === "starting" ? STARTING_POSITIONS[b.index] : BENCH_POSITIONS[b.index];
+  try {
+    await Promise.all([
+      sb.from("players").update({ pos: slotPosA, is_starting: a.list === "starting" }).eq("id", playerB.id),
+      sb.from("players").update({ pos: slotPosB, is_starting: b.list === "starting" }).eq("id", playerA.id)
+    ]);
+    listA[a.index] = { ...playerB, pos: slotPosA, is_starting: a.list === "starting" };
+    listB[b.index] = { ...playerA, pos: slotPosB, is_starting: b.list === "starting" };
+    toast("Обмен выполнен", true);
+  } catch (e) { toast("Ошибка"); }
+}
+function openTactic() { updateTacticUI(); showScreen("screen-tactic"); }
+function updateTacticUI() {
+  const current = state.team?.tactic || "balance";
+  document.querySelectorAll(".tactic-card").forEach(c => {
+    c.classList.toggle("active", c.dataset.tactic === current);
+  });
+}
+async function pickTactic(tactic) {
+  try {
+    const { error } = await sb.from("teams").update({ tactic }).eq("id", state.team.id);
+    if (error) throw error;
+    state.team.tactic = tactic;
+    updateTacticUI();
+    toast("Тактика сохранена", true);
+  } catch (e) { toast("Ошибка"); }
+}
+
+function checkDevCode() {
+  hideError("devcode-error");
+  const code = document.getElementById("dev-code-input").value.trim();
+  if (code !== DEV_CODE) return showError("devcode-error", "Неверный код");
+  state.isDev = true;
+  localStorage.setItem("sml_dev", "1");
+  document.getElementById("dev-code-input").value = "";
+  showScreen("screen-devmenu");
+}
+function devTeamsManage() {
+  document.getElementById("stub-title").textContent = "Управление командами";
+  showScreen("screen-stub");
+}
+function devWipeGame() {
+  document.getElementById("wipe-code").value = "";
+  hideError("wipe-error");
+  showScreen("screen-wipe");
+}
+async function confirmWipe() {
+  hideError("wipe-error");
+  const code = document.getElementById("wipe-code").value.trim();
+  if (code !== WIPE_CODE) return showError("wipe-error", "Неверный код");
+  if (!confirm("ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ!\n\nВсё будет удалено: аккаунты тренеров, команды, турниры, матчи, статистика.\n\nПродолжить?")) return;
+  try {
+    toast("Очистка...");
+    const { error } = await sb.rpc("wipe_game");
+    if (error) throw error;
+    await sb.auth.signOut();
+    state.user = null; state.profile = null; state.team = null;
+    // Сбрасываем "один аккаунт на устройство"
+    localStorage.removeItem("sml_account");
+    toast("Игра полностью очищена", true);
+    showScreen("screen-devmenu");
+  } catch (e) {
+    showError("wipe-error", "Ошибка: " + (e.message || ""));
+  }
+}
+function devLogout() {
+  state.isDev = false;
+  localStorage.removeItem("sml_dev");
+  toast("Вы вышли", true);
+  showScreen("screen-main");
+}
+
+async function devCreateTournament() {
+  state.creating = { name: "", format: null, rounds: 1, legs: 1, chosenTeams: new Set() };
+  document.getElementById("t-name").value = "";
+  document.getElementById("league-options").style.display = "none";
+  document.getElementById("playoff-options").style.display = "none";
+  document.querySelectorAll("#format-grid .list-item").forEach(el => el.classList.remove("chosen"));
+  document.querySelectorAll("#league-options .chip").forEach(el => el.classList.remove("chosen"));
+  document.querySelectorAll("#playoff-options .chip").forEach(el => el.classList.remove("chosen"));
+  hideError("create-tournament-error");
+  await renderTeamsForTournament();
+  showScreen("screen-create-tournament");
+}
+async function renderTeamsForTournament() {
+  const list = document.getElementById("teams-list");
+  list.innerHTML = `<div class="loading">Загружаем</div>`;
+  const { data: teams, error } = await sb.from("teams").select("*").order("name");
+  if (error || !teams) { list.innerHTML = `<div class="error-msg">Ошибка</div>`; return; }
+  const teamsWithPlayers = new Set();
+  const { data: allPlayers } = await sb.from("players").select("team_id");
+  if (allPlayers) allPlayers.forEach(p => teamsWithPlayers.add(p.team_id));
+  list.innerHTML = "";
+  teams.forEach(t => {
+    const hasPlayers = teamsWithPlayers.has(t.id);
+    const card = document.createElement("div");
+    let cls = "team-card";
+    if (!hasPlayers) cls += " disabled";
+    if (state.creating.chosenTeams.has(t.id)) cls += " chosen";
+    card.className = cls;
+    card.innerHTML = `
+      <div class="tc-short">${t.short}</div>
+      <div class="tc-name">${t.name}</div>
+      ${!hasPlayers ? `<div class="tc-coach">без состава</div>` : ""}
+    `;
+    if (hasPlayers) card.onclick = () => toggleTeamChoice(t.id);
+    list.appendChild(card);
+  });
+  document.getElementById("teams-count").textContent = `(${state.creating.chosenTeams.size})`;
+}
+function toggleTeamChoice(teamId) {
+  if (state.creating.chosenTeams.has(teamId)) state.creating.chosenTeams.delete(teamId);
+  else state.creating.chosenTeams.add(teamId);
+  renderTeamsForTournament();
+}
+function pickFormat(format) {
+  state.creating.format = format;
+  document.querySelectorAll("#format-grid .list-item").forEach(el => {
+    el.classList.toggle("chosen", el.dataset.format === format);
+  });
+  document.getElementById("league-options").style.display = format === "league" ? "block" : "none";
+  document.getElementById("playoff-options").style.display = format.startsWith("playoff") ? "block" : "none";
+}
+function pickRounds(rounds) {
+  state.creating.rounds = rounds;
+  document.querySelectorAll("#league-options .chip").forEach(el => {
+    el.classList.toggle("chosen", parseInt(el.dataset.rounds, 10) === rounds);
+  });
+}
+function pickLegs(legs) {
+  state.creating.legs = legs;
+  document.querySelectorAll("#playoff-options .chip").forEach(el => {
+    el.classList.toggle("chosen", parseInt(el.dataset.legs, 10) === legs);
+  });
+}
+async function confirmCreateTournament() {
+  hideError("create-tournament-error");
+  const name = document.getElementById("t-name").value.trim();
+  const { format, rounds, legs, chosenTeams } = state.creating;
+  if (!name) return showError("create-tournament-error", "Введите название");
+  if (!format) return showError("create-tournament-error", "Выберите формат");
+  if (chosenTeams.size < 2) return showError("create-tournament-error", "Минимум 2 команды");
+  const reqSizes = { playoff_4: 4, playoff_8: 8, playoff_16: 16 };
+  if (reqSizes[format] && chosenTeams.size !== reqSizes[format]) return showError("create-tournament-error", `Для формата нужно ровно ${reqSizes[format]} команд`);
+  if (format === "league" && chosenTeams.size < 3) return showError("create-tournament-error", "Для чемпионата минимум 3 команды");
+  try {
+    const { data: tour, error } = await sb.from("tournaments").insert({
+      name, format, status: "draft",
+      league_rounds: format === "league" ? rounds : null,
+      double_round: format === "league" ? rounds === 2 : false
+    }).select().single();
+    if (error || !tour) throw error;
+    const teamIds = Array.from(chosenTeams);
+    await sb.from("tournament_teams").insert(teamIds.map(tid => ({ tournament_id: tour.id, team_id: tid })));
+    if (format.startsWith("playoff")) {
+      await generatePlayoff(tour.id, teamIds, legs);
+    } else {
+      await generateLeague(tour.id, teamIds, rounds);
+    }
+    toast("Турнир создан!", true);
+    state.currentTournamentId = tour.id;
+    await viewTournament(tour.id);
+  } catch (e) {
+    showError("create-tournament-error", "Ошибка: " + (e.message || ""));
+  }
+}
+
+/* ============ ГЕНЕРАЦИЯ ПЛЕЙ-ОФФ ============ */
+async function generatePlayoff(tournamentId, teamIds, legs) {
+  // Сортируем по силе
+  const teamStats = await getTeamStrengths(teamIds);
+  const sorted = [...teamStats].sort((a, b) => b.strength - a.strength);
+  const n = sorted.length;
+  const firstRoundLabels = { 4: "1/2 финала", 8: "1/4 финала", 16: "1/8 финала" };
+  const firstLabel = firstRoundLabels[n] || "Раунд 1";
+  const rows = [];
+
+  // Первый раунд: пары посева 1-последний, 2-предпоследний и т.д.
+  const pairs = [];
+  for (let i = 0; i < n / 2; i++) {
+    pairs.push([sorted[i].id, sorted[n - 1 - i].id]);
+  }
+
+  // Все раунды кроме финала
+  let currentPairs = pairs;
+  let roundNum = 1;
+  let label = firstLabel;
+
+  while (currentPairs.length > 1) {
+    // Определяем количество матчей в этом раунде (1 или 2)
+    const isFinal = currentPairs.length === 1;
+    const legsThisRound = isFinal ? 1 : legs; // финал всегда 1 матч
+
+    currentPairs.forEach((pair, idx) => {
+      if (legsThisRound === 1) {
+        rows.push({
+          tournament_id: tournamentId,
+          round: roundNum,
+          round_label: label,
+          home_team_id: pair[0],
+          away_team_id: pair[1],
+          status: "scheduled",
+          stage: "playoff",
+          bracket_position: idx
+        });
+      } else {
+        // 2 матча: 1-й — home A vs B, 2-й — home B vs A
+        rows.push({
+          tournament_id: tournamentId,
+          round: roundNum,
+          round_label: label + " · Матч 1",
+          home_team_id: pair[0],
+          away_team_id: pair[1],
+          status: "scheduled",
+          stage: "playoff",
+          bracket_position: idx
+        });
+        rows.push({
+          tournament_id: tournamentId,
+          round: roundNum,
+          round_label: label + " · Матч 2",
+          home_team_id: pair[1],
+          away_team_id: pair[0],
+          status: "scheduled",
+          stage: "playoff",
+          bracket_position: idx + 1000
+        });
+      }
+    });
+
+    // Переходим к следующему раунду
+    roundNum++;
+    label = nextRoundLabel(label);
+    currentPairs = currentPairs.map(() => [null, null]);
+    // Пересоздаём пары: для 2 матчей — побежитель пары (пока пусто)
+    if (currentPairs.length > 1) {
+      const newPairs = [];
+      for (let i = 0; i < currentPairs.length; i += 2) {
+        newPairs.push([null, null]);
+      }
+      currentPairs = newPairs;
+    }
+  }
+
+  // Если после while осталось 1 пара — это финал, добавляем его
+  // Проверяем: если последний добавленный раунд — не финал, добавить финал
+  const lastRoundLabel = rows.length ? rows[rows.length - 1].round_label : "";
+  if (!lastRoundLabel.includes("Финал")) {
+    rows.push({
+      tournament_id: tournamentId,
+      round: roundNum,
+      round_label: "Финал",
+      home_team_id: null,
+      away_team_id: null,
+      status: "pending",
+      stage: "playoff",
+      bracket_position: 0
+    });
+  }
+
+  await sb.from("matches").insert(rows);
+}
+
+function nextRoundLabel(cur) {
+  if (cur === "1/8 финала") return "1/4 финала";
+  if (cur === "1/4 финала") return "1/2 финала";
+  if (cur === "1/2 финала") return "Финал";
+  return "Следующий раунд";
+}
+
+async function getTeamStrengths(teamIds) {
+  const { data: players } = await sb.from("players").select("team_id, rating, is_starting").in("team_id", teamIds);
+  const map = {};
+  teamIds.forEach(id => map[id] = []);
+  if (players) players.filter(p => p.is_starting).forEach(p => { if (map[p.team_id]) map[p.team_id].push(p.rating); });
+  return teamIds.map(id => ({ id, strength: map[id].length ? map[id].reduce((s, r) => s + r, 0) / map[id].length : 0 }));
+}
+
+/* ============ ГЕНЕРАЦИЯ ЧЕМПИОНАТА ============ */
+async function generateLeague(tournamentId, teamIds, roundsCount) {
+  const teamStats = await getTeamStrengths(teamIds);
+  const sorted = [...teamStats].sort((a, b) => b.strength - a.strength);
+  const teams = sorted.map(t => t.id);
+  const n = teams.length;
+  const isOdd = n % 2 === 1;
+  const arr = [...teams];
+  if (isOdd) arr.push(null);
+  const total = arr.length;
+  const roundsPerCircle = total - 1;
+  const matchesPerRound = total / 2;
+  const allRounds = [];
+  const current = [...arr];
+  for (let r = 0; r < roundsPerCircle; r++) {
+    const roundMatches = [];
+    for (let m = 0; m < matchesPerRound; m++) {
+      const home = current[m];
+      const away = current[total - 1 - m];
+      if (home !== null && away !== null) {
+        if (Math.random() < 0.5) roundMatches.push([home, away]);
+        else roundMatches.push([away, home]);
+      }
+    }
+    allRounds.push(roundMatches);
+    const last = current.pop();
+    current.splice(1, 0, last);
+  }
+  const rows = [];
+  let roundNum = 1;
+  for (const rm of allRounds) {
+    for (const [h, a] of rm) {
+      rows.push({
+        tournament_id: tournamentId, round: roundNum, round_label: `Тур ${roundNum}`,
+        home_team_id: h, away_team_id: a,
+        status: "scheduled", stage: "league", bracket_position: null
+      });
+    }
+    roundNum++;
+  }
+  if (roundsCount === 2) {
+    for (const rm of allRounds) {
+      for (const [h, a] of rm) {
+        rows.push({
+          tournament_id: tournamentId, round: roundNum, round_label: `Тур ${roundNum}`,
+          home_team_id: a, away_team_id: h,
+          status: "scheduled", stage: "league", bracket_position: null
+        });
+      }
+      roundNum++;
+    }
+  }
+  await sb.from("matches").insert(rows);
+}
+
+/* ============ ПРОСМОТР ТУРНИРА (РАЗРАБОТЧИК) ============ */
+async function devMyTournaments() {
+  const wrap = document.querySelector("#screen-stub .menu-wrap");
+  wrap.innerHTML = `<h1 class="title-main" style="font-size:1.4rem">Загрузка</h1>`;
+  showScreen("screen-stub");
+  const { data, error } = await sb.from("tournaments").select("*").order("created_at", { ascending: false });
+  if (error || !data) { wrap.innerHTML = `<h1 class="title-main" style="font-size:1.4rem">Ошибка</h1>`; return; }
+  let html = `<h1 class="title-main" style="font-size:1.4rem">Мои турниры</h1>`;
+  if (data.length === 0) html += `<p class="subtitle">Пока нет</p>`;
+  else {
+    html += `<p class="subtitle">${data.length} шт.</p>`;
+    data.forEach(t => {
+      html += `<div class="tournament-card" onclick="viewTournament('${t.id}')">
+        <div class="t-name">${t.name}</div>
+        <div class="t-meta">${formatLabel(t.format)}</div>
+      </div>`;
+    });
+  }
+  html += `<div class="menu-actions" style="margin-top:20px">
+    <button class="btn secondary" onclick="showScreen('screen-devmenu')">← Назад</button>
+  </div>`;
+  wrap.innerHTML = html;
+}
+
+async function viewTournament(tournamentId) {
+  state.currentTournamentId = tournamentId;
+  document.getElementById("tv-content").innerHTML = `<div class="loading">Загрузка</div>`;
+  showScreen("screen-tournament-view");
+  const { data: tour } = await sb.from("tournaments").select("*").eq("id", tournamentId).single();
+  if (!tour) { document.getElementById("tv-content").innerHTML = `<div class="error-msg">Не найден</div>`; return; }
+  document.getElementById("tv-name").textContent = tour.name;
+  document.getElementById("tv-format").textContent = formatLabel(tour.format);
+  const { data: preMatches } = await sb.from("matches").select("*").eq("tournament_id", tournamentId);
+  if (preMatches) await simulateReadyMatches(preMatches, tournamentId);
+  const { data: matches } = await sb.from("matches").select("*").eq("tournament_id", tournamentId).order("round").order("bracket_position");
+  const { data: teams } = await sb.from("teams").select("*");
+  const teamMap = {};
+  if (teams) teams.forEach(t => teamMap[t.id] = t);
+  let html = "";
+  if (tour.format.startsWith("playoff")) html += renderPlayoffBracket(matches, teamMap, tour.id);
+  else if (tour.format === "league") html += renderLeagueView(matches, teamMap, tour.id);
+  document.getElementById("tv-content").innerHTML = html;
+}
+
+function renderPlayoffBracket(matches, teamMap, tournamentId) {
+  if (!matches || matches.length === 0) return `<div class="info-box">Матчей нет</div>`;
+  const byRound = {};
+  matches.forEach(m => { if (!byRound[m.round]) byRound[m.round] = []; byRound[m.round].push(m); });
+  let html = "";
+  Object.keys(byRound).sort((a,b) => a-b).forEach(r => {
+    const rMatches = byRound[r].sort((a,b) => (a.bracket_position ?? 0) - (b.bracket_position ?? 0));
+    const label = rMatches[0]?.round_label || `Раунд ${r}`;
+    const times = rMatches.map(m => m.scheduled_at).filter(Boolean);
+    const timeText = times.length ? `<div class="time-info">Ближайший матч: <b>${formatDate(times[0])}</b></div>` : "";
+    html += `<div class="bracket-round"><div class="bracket-round-label">${label.replace(/ · Матч \d/, '')}</div>${timeText}`;
+    rMatches.forEach(m => {
+      const home = teamMap[m.home_team_id]?.short || "—";
+      const away = teamMap[m.away_team_id]?.short || "—";
+      let score = "TBD";
+      let clickable = "";
+      if (m.status === "played") {
+        score = `${m.home_score} : ${m.away_score}`;
+        clickable = `onclick="viewMatchComments('${m.id}', 'screen-tournament-view')"`;
+      } else if (m.status === "scheduled") {
+        score = "не сыгран";
+      }
+      html += `<div class="bracket-match" ${clickable}>
+        <div class="bracket-team">${home}</div>
+        <div class="bracket-score">${score}</div>
+        <div class="bracket-team">${away}</div>
+      </div>`;
+      if (m.status !== "played") {
+        html += `<div class="time-picker-row">
+          <input type="datetime-local" id="time-m-${m.id}" />
+          <button class="btn small" onclick="setMatchTime('${m.id}', '${tournamentId}')">Задать время</button>
+        </div>`;
+      }
+    });
+    html += `</div>`;
+  });
+  return html;
+}
+
+function renderLeagueView(matches, teamMap, tournamentId) {
+  if (!matches || matches.length === 0) return `<div class="info-box">Матчей нет</div>`;
+  const byRound = {};
+  matches.forEach(m => { if (!byRound[m.round]) byRound[m.round] = []; byRound[m.round].push(m); });
+  let html = "";
+  Object.keys(byRound).sort((a,b) => a-b).forEach(r => {
+    const rMatches = byRound[r];
+    const label = rMatches[0]?.round_label || `Тур ${r}`;
+    const times = rMatches.map(m => m.scheduled_at).filter(Boolean);
+    const timeText = times.length ? `<div class="time-info">Начало: <b>${formatDate(times[0])}</b></div>` : "";
+    html += `<div class="bracket-round"><div class="bracket-round-label">${label}</div>${timeText}`;
+    rMatches.forEach(m => {
+      const home = teamMap[m.home_team_id]?.short || "—";
+      const away = teamMap[m.away_team_id]?.short || "—";
+      let score = "не сыгран";
+      let clickable = "";
+      if (m.status === "played") {
+        score = `${m.home_score} : ${m.away_score}`;
+        clickable = `onclick="viewMatchComments('${m.id}', 'screen-tournament-view')"`;
+      }
+      html += `<div class="bracket-match" ${clickable}>
+        <div class="bracket-team">${home}</div>
+        <div class="bracket-score">${score}</div>
+        <div class="bracket-team">${away}</div>
+      </div>`;
+    });
+    if (rMatches.length && rMatches[0].status !== "played") {
+      html += `<div class="time-picker-row">
+        <input type="datetime-local" id="time-r-${r}" />
+        <button class="btn small" onclick="setRoundTime('${tournamentId}', ${r})">Задать время</button>
+      </div>`;
+    }
+    html += `</div>`;
+  });
+  html += renderStandings(matches, teamMap);
+  return html;
+}
+
+function renderStandings(matches, teamMap) {
+  const stats = {};
+  matches.filter(m => m.status === "played").forEach(m => {
+    const h = m.home_team_id, a = m.away_team_id;
+    if (!h || !a) return;
+    if (!stats[h]) stats[h] = { id: h, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+    if (!stats[a]) stats[a] = { id: a, p: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0, pts: 0 };
+    stats[h].p++; stats[a].p++;
+    stats[h].gf += m.home_score; stats[h].ga += m.away_score;
+    stats[a].gf += m.away_score; stats[a].ga += m.home_score;
+    if (m.home_score > m.away_score) { stats[h].w++; stats[h].pts += 3; stats[a].l++; }
+    else if (m.home_score < m.away_score) { stats[a].w++; stats[a].pts += 3; stats[h].l++; }
+    else { stats[h].d++; stats[a].d++; stats[h].pts++; stats[a].pts++; }
+  });
+  const arr = Object.values(stats).sort((a,b) => b.pts - a.pts || (b.gf - b.ga) - (a.gf - a.ga) || b.gf - a.gf);
+  if (arr.length === 0) return "";
+  let html = `<div class="section-title">Таблица</div>
+    <table class="table-standings">
+      <thead><tr><th>#</th><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>М</th><th>О</th></tr></thead><tbody>`;
+  arr.forEach((s, i) => {
+    const t = teamMap[s.id];
+    html += `<tr>
+      <td>${i+1}</td><td>${t?.short || "—"}</td>
+      <td>${s.p}</td><td>${s.w}</td><td>${s.d}</td><td>${s.l}</td>
+      <td>${s.gf}:${s.ga}</td><td><b>${s.pts}</b></td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  return html;
+}
+
+async function setRoundTime(tournamentId, round) {
+  const input = document.getElementById(`time-r-${round}`);
+  if (!input || !input.value) { toast("Выберите дату и время"); return; }
+  const iso = new Date(input.value).toISOString();
+  try {
+    const { error } = await sb.from("matches").update({ scheduled_at: iso })
+      .eq("tournament_id", tournamentId).eq("round", round);
+    if (error) throw error;
+    toast("Время задано", true);
+    await viewTournament(tournamentId);
+  } catch (e) { toast("Ошибка"); }
+}
+
+async function setMatchTime(matchId, tournamentId) {
+  const input = document.getElementById(`time-m-${matchId}`);
+  if (!input || !input.value) { toast("Выберите дату и время"); return; }
+  const iso = new Date(input.value).toISOString();
+  try {
+    const { error } = await sb.from("matches").update({ scheduled_at: iso }).eq("id", matchId);
+    if (error) throw error;
+    toast("Время задано", true);
+    await viewTournament(tournamentId);
+  } catch (e) { toast("Ошибка"); }
+}
+
+/* ============ ТУРНИРЫ ТРЕНЕРА ============ */
+async function openCareerTournaments() {
+  document.getElementById("my-tournaments-content").innerHTML = `<div class="loading">Загрузка</div>`;
+  showScreen("screen-my-tournaments");
+  const { data: myEntries } = await sb.from("tournament_teams").select("tournament_id").eq("team_id", state.team.id);
+  if (!myEntries || myEntries.length === 0) {
+    document.getElementById("my-tournaments-content").innerHTML = `<div class="info-box">Вы пока не участвуете ни в одном турнире.</div>`;
+    return;
+  }
+  const ids = myEntries.map(e => e.tournament_id);
+  const { data: tours } = await sb.from("tournaments").select("*").in("id", ids).order("created_at", { ascending: false });
+  if (!tours) { document.getElementById("my-tournaments-content").innerHTML = `<div class="error-msg">Ошибка</div>`; return; }
+  let html = "";
+  tours.forEach(t => {
+    html += `<div class="tournament-card" onclick="openCoachTournament('${t.id}')">
+      <div class="t-name">${t.name}</div>
+      <div class="t-meta">${formatLabel(t.format)}</div>
+    </div>`;
+  });
+  document.getElementById("my-tournaments-content").innerHTML = html;
+}
+
+async function openCoachTournament(tournamentId) {
+  state.currentTournamentId = tournamentId;
+  document.getElementById("ct-content").innerHTML = `<div class="loading">Загрузка</div>`;
+  showScreen("screen-coach-tournament");
+  const { data: tour } = await sb.from("tournaments").select("*").eq("id", tournamentId).single();
+  if (!tour) { document.getElementById("ct-content").innerHTML = `<div class="error-msg">Не найден</div>`; return; }
+  document.getElementById("ct-name").textContent = tour.name;
+  document.getElementById("ct-format").textContent = formatLabel(tour.format);
+  const { data: preMatches } = await sb.from("matches").select("*").eq("tournament_id", tournamentId);
+  if (preMatches) await simulateReadyMatches(preMatches, tournamentId);
+  const { data: matches } = await sb.from("matches").select("*").eq("tournament_id", tournamentId).order("round").order("bracket_position");
+  const { data: teams } = await sb.from("teams").select("*");
+  const teamMap = {};
+  if (teams) teams.forEach(t => teamMap[t.id] = t);
+  let html = "";
+  if (tour.format.startsWith("playoff")) html += renderCoachPlayoff(matches, teamMap, tournamentId);
+  else if (tour.format === "league") html += renderCoachLeague(matches, teamMap, tournamentId);
+  document.getElementById("ct-content").innerHTML = html;
+}
+
+function renderCoachPlayoff(matches, teamMap, tournamentId) {
+  if (!matches || matches.length === 0) return `<div class="info-box">Матчей нет</div>`;
+  const byRound = {};
+  matches.forEach(m => { if (!byRound[m.round]) byRound[m.round] = []; byRound[m.round].push(m); });
+  let html = "";
+  Object.keys(byRound).sort((a,b) => a-b).forEach(r => {
+    const rMatches = byRound[r].sort((a,b) => (a.bracket_position ?? 0) - (b.bracket_position ?? 0));
+    const label = rMatches[0]?.round_label || `Раунд ${r}`;
+    const times = rMatches.map(m => m.scheduled_at).filter(Boolean);
+    const timeText = times.length ? `<div class="time-info">Ближайший: <b>${formatDate(times[0])}</b></div>` : `<div class="time-info">Время не назначено</div>`;
+    html += `<div class="bracket-round"><div class="bracket-round-label">${label.replace(/ · Матч \d/, '')}</div>${timeText}`;
+    rMatches.forEach(m => {
+      const home = teamMap[m.home_team_id]?.short || "—";
+      const away = teamMap[m.away_team_id]?.short || "—";
+      const isMy = m.home_team_id === state.team.id || m.away_team_id === state.team.id;
+      let score = "TBD";
+      let clickable = "";
+      if (m.status === "played") {
+        const seen = isMy ? localStorage.getItem(`seen_${m.id}`) : "1";
+        if (isMy && !seen) {
+          score = `<span style="background:linear-gradient(180deg,#2d8cf0,#1e5fb8);color:#fff;padding:4px 10px;border-radius:6px;font-size:.7rem">КОММЕНТАРИИ</span>`;
+        } else {
+          score = `${m.home_score} : ${m.away_score}${m.home_pens != null ? ` (пен.${m.home_pens}:${m.away_pens})` : ""}`;
+        }
+        clickable = `onclick="viewMatchComments('${m.id}', 'screen-coach-tournament')"`;
+      } else if (m.status === "scheduled") {
+        score = "не сыгран";
+      }
+      html += `<div class="bracket-match ${isMy ? 'you' : ''}" ${clickable}>
+        <div class="bracket-team ${isMy ? 'win' : ''}">${home}</div>
+        <div class="bracket-score">${score}</div>
+        <div class="bracket-team ${isMy ? 'win' : ''}">${away}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  return html;
+}
+
+function renderCoachLeague(matches, teamMap, tournamentId) {
+  if (!matches || matches.length === 0) return `<div class="info-box">Матчей нет</div>`;
+  const byRound = {};
+  matches.forEach(m => { if (!byRound[m.round]) byRound[m.round] = []; byRound[m.round].push(m); });
+  let html = "";
+  Object.keys(byRound).sort((a,b) => a-b).forEach(r => {
+    const rMatches = byRound[r];
+    const label = rMatches[0]?.round_label || `Тур ${r}`;
+    const times = rMatches.map(m => m.scheduled_at).filter(Boolean);
+    const timeText = times.length ? `<div class="time-info">Начало: <b>${formatDate(times[0])}</b></div>` : `<div class="time-info">Время не назначено</div>`;
+    html += `<div class="bracket-round"><div class="bracket-round-label">${label}</div>${timeText}`;
+    rMatches.forEach(m => {
+      const home = teamMap[m.home_team_id]?.short || "—";
+      const away = teamMap[m.away_team_id]?.short || "—";
+      const isMy = m.home_team_id === state.team.id || m.away_team_id === state.team.id;
+      let score = "не сыгран";
+      let clickable = "";
+      if (m.status === "played") {
+        const seen = isMy ? localStorage.getItem(`seen_${m.id}`) : "1";
+        if (isMy && !seen) {
+          score = `<span style="background:linear-gradient(180deg,#2d8cf0,#1e5fb8);color:#fff;padding:4px 10px;border-radius:6px;font-size:.7rem">КОММЕНТАРИИ</span>`;
+        } else {
+          score = `${m.home_score} : ${m.away_score}`;
+        }
+        clickable = `onclick="viewMatchComments('${m.id}', 'screen-coach-tournament')"`;
+      }
+      html += `<div class="bracket-match" ${clickable} style="${isMy ? 'border-color: var(--blue-main);' : ''}">
+        <div class="bracket-team ${isMy ? 'win' : ''}">${home}</div>
+        <div class="bracket-score">${score}</div>
+        <div class="bracket-team ${isMy ? 'win' : ''}">${away}</div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  html += renderStandings(matches, teamMap);
+  return html;
+}
+
+/* ============ СИМУЛЯЦИЯ МАТЧЕЙ ============ */
+async function simulateReadyMatches(matches, tournamentId) {
+  const now = new Date();
+  const ready = matches.filter(m => m.status === "scheduled" && m.scheduled_at && new Date(m.scheduled_at) <= now);
+  if (ready.length === 0) return;
+  for (const m of ready) {
+    await simulateMatch(m.id);
+  }
+}
+
+async function simulateMatch(matchId) {
+  const { data: m } = await sb.from("matches").select("*").eq("id", matchId).single();
+  if (!m || m.status !== "scheduled") return;
+  if (!m.home_team_id || !m.away_team_id) return;
+  const { data: homePlayers } = await sb.from("players").select("*").eq("team_id", m.home_team_id);
+  const { data: awayPlayers } = await sb.from("players").select("*").eq("team_id", m.away_team_id);
+  const { data: homeTeam } = await sb.from("teams").select("*").eq("id", m.home_team_id).single();
+  const { data: awayTeam } = await sb.from("teams").select("*").eq("id", m.away_team_id).single();
+  if (!homePlayers || !awayPlayers) return;
+  const homeStart = homePlayers.filter(p => p.is_starting);
+  const awayStart = awayPlayers.filter(p => p.is_starting);
+  const hChance = goalChance(homeStart, awayStart, homeTeam.tactic || "balance", awayTeam.tactic || "balance");
+  const aChance = goalChance(awayStart, homeStart, awayTeam.tactic || "balance", homeTeam.tactic || "balance");
+  let hScore = 0, aScore = 0;
+  for (let i = 0; i < 5; i++) if (Math.random() < hChance) hScore++;
+  for (let i = 0; i < 5; i++) if (Math.random() < aChance) aScore++;
+  let homePens = null, awayPens = null;
+  // Пенальти: только в чемпионате НЕ бывает. В плей-офф — по итогам двух матчей (см. below).
+  // Здесь простая логика: для одиночного матча плей-офф при ничьей — сразу пенальти
+  // Для 2 матчей — пенальти решится при подведении итогов пары
+  if (m.stage === "playoff" && hScore === aScore && m.round_label && !m.round_label.includes("Матч")) {
+    // Только для финала (один матч) при ничьей
+    const pens = simulatePenalties(homeStart, awayStart);
+    homePens = pens.home;
+    awayPens = pens.away;
+  }
+  await sb.from("matches").update({
+    home_score: hScore, away_score: aScore,
+    home_pens: homePens, away_pens: awayPens,
+    status: "played", simulated: true
+  }).eq("id", matchId);
+  await updateEnergyAfterMatch(homePlayers, homeTeam.tactic || "balance");
+  await updateEnergyAfterMatch(awayPlayers, awayTeam.tactic || "balance");
+  if (m.stage === "playoff") {
+    await tryAdvancePlayoffPair(m);
+  }
+}
+
+/**
+ * После симуляции матча пытаемся продвинуть пару:
+ * - если это одиночный матч (1 матч на стадии) — просто продвигаем победителя
+ * - если 2 матча — ждём оба, потом считаем сумму
+ */
+async function tryAdvancePlayoffPair(m) {
+  const { data: allMatches } = await sb.from("matches")
+    .select("*")
+    .eq("tournament_id", m.tournament_id)
+    .eq("round", m.round);
+  if (!allMatches) return;
+
+  // Определяем, сколько матчей в паре: 1 или 2
+  const labelHasMatch = m.round_label && m.round_label.includes("Матч");
+  const isFinal = m.round_label === "Финал";
+
+  if (isFinal || !labelHasMatch) {
+    // Одиночный матч — продвигаем победителя
+    await advanceSingleWinner(m);
+  } else {
+    // Пара из 2 матчей
+    // Находим оба матча этой пары
+    const pairMatches = allMatches.filter(mm => mm.bracket_position === m.bracket_position || mm.bracket_position === m.bracket_position + 1000);
+    if (pairMatches.length < 2) return;
+    if (pairMatches.some(mm => mm.status !== "played")) return;
+    // Считаем сумму
+    const team1 = pairMatches[0].home_team_id;
+    const team2 = pairMatches[0].away_team_id;
+    let goals1 = 0, goals2 = 0;
+    pairMatches.forEach(mm => {
+      if (mm.home_team_id === team1) { goals1 += mm.home_score; goals2 += mm.away_score; }
+      else { goals2 += mm.home_score; goals1 += mm.away_score; }
+    });
+    let winnerId;
+    let pens1 = null, pens2 = null;
+    if (goals1 > goals2) winnerId = team1;
+    else if (goals2 > goals1) winnerId = team2;
+    else {
+      // Пенальти
+      const { data: p1 } = await sb.from("players").select("*").eq("team_id", team1);
+      const { data: p2 } = await sb.from("players").select("*").eq("team_id", team2);
+      const pens = simulatePenalties(p1.filter(p => p.is_starting), p2.filter(p => p.is_starting));
+      winnerId = pens.home > pens.away ? team1 : team2;
+      pens1 = pens.home;
+      pens2 = pens.away;
+      // Обновляем 2-й матч с счётом пенальти
+      await sb.from("matches").update({ home_pens: pens.home, away_pens: pens.away }).eq("id", pairMatches[1].id);
+    }
+    // Продвигаем победителя в следующий раунд
+    await advanceWinnerToNextRound(m.tournament_id, m.round, m.bracket_position, winnerId);
+  }
+}
+
+async function advanceSingleWinner(m) {
+  let winnerId = null;
+  if (m.home_pens != null && m.away_pens != null) {
+    winnerId = m.home_pens > m.away_pens ? m.home_team_id : m.away_team_id;
+  } else if (m.home_score > m.away_score) winnerId = m.home_team_id;
+  else if (m.away_score > m.home_score) winnerId = m.away_team_id;
+  else return;
+  await advanceWinnerToNextRound(m.tournament_id, m.round, m.bracket_position, winnerId);
+}
+
+async function advanceWinnerToNextRound(tournamentId, fromRound, bracketPos, winnerId) {
+  const { data: nextMatches } = await sb.from("matches")
+    .select("*")
+    .eq("tournament_id", tournamentId)
+    .eq("round", fromRound + 1)
+    .order("bracket_position");
+  if (!nextMatches || nextMatches.length === 0) return;
+  const nextPos = Math.floor(bracketPos / 2);
+  // Для 2 матчей в раунде у нас 2 записи с bracket_position = nextPos и nextPos+1000
+  const candidates = nextMatches.filter(nm => nm.bracket_position === nextPos || nm.bracket_position === nextPos + 1000);
+  if (candidates.length === 0) return;
+  const isHome = bracketPos % 2 === 0;
+  // Ставим в первый матч пары
+  const firstLeg = candidates.find(nm => nm.bracket_position === nextPos) || candidates[0];
+  if (!firstLeg) return;
+  const update = isHome ? { home_team_id: winnerId } : { away_team_id: winnerId };
+  await sb.from("matches").update(update).eq("id", firstLeg.id);
+  // Если есть 2-й матч — ставим туда же, но наоборот
+  if (candidates.length > 1) {
+    const secondLeg = candidates.find(nm => nm.id !== firstLeg.id);
+    if (secondLeg) {
+      // В secondLeg команды меняются местами
+      const update2 = isHome ? { away_team_id: winnerId } : { home_team_id: winnerId };
+      await sb.from("matches").update(update2).eq("id", secondLeg.id);
+    }
+  }
+}
+
+function goalChance(attackerStart, defenderStart, atkTactic, defTactic) {
+  const atk = avgAttack(attackerStart);
+  const def = avgDefense(defenderStart);
+  const diff = atk - def;
+  let chance = 0.35 + diff * 0.035;
+  chance *= tacticMultiplier(atkTactic);
+  chance *= tacticMultiplier(defTactic);
+  return Math.max(0.05, Math.min(0.90, chance));
+}
+function tacticMultiplier(t) {
+  if (t === "attack") return 1.20;
+  if (t === "defense") return 0.80;
+  return 1.00;
+}
+function effectiveRating(p) {
+  const e = Math.max(0, Math.min(100, p.energy ?? 100));
+  return Math.max(20, p.rating - (100 - e) * ENERGY_PENALTY_PER_POINT);
+}
+function avgAttack(starting) {
+  const arr = starting.filter(p => ["ЛВ","НАП","ПВ","ЦАП","ЦП"].includes(p.pos));
+  if (!arr.length) return 80;
+  return arr.reduce((s, p) => s + effectiveRating(p), 0) / arr.length;
+}
+function avgDefense(starting) {
+  const arr = starting.filter(p => ["ЛЗ","ЦЗ","ПЗ","ВРТ"].includes(p.pos));
+  if (!arr.length) return 80;
+  return arr.reduce((s, p) => s + effectiveRating(p), 0) / arr.length;
+}
+function simulatePenalties(homeStart, awayStart) {
+  const hK = homeStart.find(p => p.pos === "ВРТ") || { rating: 80 };
+  const aK = awayStart.find(p => p.pos === "ВРТ") || { rating: 80 };
+  const hS = homeStart.filter(p => p.pos !== "ВРТ").slice(0, 5);
+  const aS = awayStart.filter(p => p.pos !== "ВРТ").slice(0, 5);
+  let h = 0, a = 0;
+  for (let r = 0; r < 5; r++) {
+    const hs = hS[r % hS.length];
+    const as = aS[r % aS.length];
+    if (Math.random() < 0.75 + (hs.rating - aK.rating) * 0.02) h++;
+    if (Math.random() < 0.75 + (as.rating - hK.rating) * 0.02) a++;
+  }
+  while (h === a) {
+    if (Math.random() < 0.75) h++;
+    if (Math.random() < 0.75) a++;
+  }
+  return { home: h, away: a };
+}
+async function updateEnergyAfterMatch(players, tactic) {
+  const updates = [];
+  players.forEach(p => {
+    if (p.is_starting) {
+      const cost = drainPerMinute(p.pos, tactic) * 90;
+      let newEnergy = Math.max(0, (p.energy ?? 100) - cost);
+      if (p.pos === "ВРТ") newEnergy = Math.max(0, newEnergy - GK_FULL_MATCH_COST);
+      newEnergy = Math.min(100, newEnergy + POST_MATCH_ENERGY_BONUS);
+      updates.push(sb.from("players").update({ energy: Math.round(newEnergy) }).eq("id", p.id));
+    } else {
+      const newEnergy = Math.min(100, (p.energy ?? 100) + NOT_PLAYED_ENERGY_BONUS + POST_MATCH_ENERGY_BONUS);
+      updates.push(sb.from("players").update({ energy: Math.round(newEnergy) }).eq("id", p.id));
+    }
+  });
+  await Promise.all(updates);
+}
+function drainPerMinute(pos, tactic) {
+  if (pos === "ВРТ") return 0;
+  const isAtk = ["ЛВ","НАП","ПВ"].includes(pos);
+  const isMid = ["ЦАП","ЦП"].includes(pos);
+  const isDef = ["ЛЗ","ЦЗ","ПЗ"].includes(pos);
+  if (tactic === "attack") {
+    if (isAtk) return 2/10;
+    if (isMid) return 2/15;
+    if (isDef) return 1/15;
+  } else if (tactic === "balance") {
+    if (isAtk) return 1/10;
+    if (isMid) return 1/15;
+    if (isDef) return 1/20;
+  } else if (tactic === "defense") {
+    if (isAtk) return 1/15;
+    if (isMid) return 1/20;
+    if (isDef) return 1/30;
+  }
+  return 0;
+}
+
+/* ============ КОММЕНТАРИИ МАТЧА ============ */
+async function viewMatchComments(matchId, backScreen = "screen-coach-tournament") {
+  state.currentMatchId = matchId;
+  state.backTarget = backScreen;
+  document.getElementById("mv-content").innerHTML = `<div class="loading">Загрузка</div>`;
+  showScreen("screen-match-view");
+  const { data: m } = await sb.from("matches").select("*").eq("id", matchId).single();
+  if (!m) { document.getElementById("mv-content").innerHTML = `<div class="error-msg">Матч не найден</div>`; return; }
+  const { data: homeTeam } = await sb.from("teams").select("*").eq("id", m.home_team_id).single();
+  const { data: awayTeam } = await sb.from("teams").select("*").eq("id", m.away_team_id).single();
+  const { data: homePlayers } = await sb.from("players").select("*").eq("team_id", m.home_team_id);
+  const { data: awayPlayers } = await sb.from("players").select("*").eq("team_id", m.away_team_id);
+  document.getElementById("mv-title").textContent = `${homeTeam?.name || "—"} — ${awayTeam?.name || "—"}`;
+  document.getElementById("mv-sub").textContent = m.round_label || "Матч";
+  if (m.status !== "played") {
+    document.getElementById("mv-content").innerHTML = `<div class="info-box">Матч ещё не сыгран.<br>Начало: ${formatDate(m.scheduled_at)}</div>`;
+    return;
+  }
+  const comments = generateMatchComments(homeTeam, awayTeam, homePlayers || [], awayPlayers || [], m.home_score, m.away_score, m.home_pens, m.away_pens);
+  let html = `<div class="info-box" style="text-align:center;font-size:1.1rem">
+    <b style="color:#fff;font-size:1.6rem">${m.home_score} : ${m.away_score}</b>
+    ${m.home_pens != null ? `<br><span style="color:#fff">(пен. ${m.home_pens}:${m.away_pens})</span>` : ""}
+  </div>`;
+  comments.forEach(c => {
+    html += `<div class="match-comment ${c.type}"><span class="mc-minute">${c.minute}'</span>${c.text}</div>`;
+  });
+  document.getElementById("mv-content").innerHTML = html;
+  if (state.team && (m.home_team_id === state.team.id || m.away_team_id === state.team.id)) {
+    localStorage.setItem(`seen_${matchId}`, "1");
+  }
+}
+function backFromMatchView() {
+  const target = state.backTarget || "screen-coach-tournament";
+  showScreen(target);
+  if (target === "screen-coach-tournament" && state.currentTournamentId) {
+    openCoachTournament(state.currentTournamentId);
+  } else if (target === "screen-tournament-view" && state.currentTournamentId) {
+    viewTournament(state.currentTournamentId);
+  }
+}
+function generateMatchComments(homeTeam, awayTeam, homePlayers, awayPlayers, hScore, aScore, hPens, aPens) {
+  const comments = [];
+  const homeName = homeTeam?.name || "Хозяева";
+  const awayName = awayTeam?.name || "Гости";
+  const homeNames = homePlayers.filter(p => p.pos !== "ВРТ").map(p => p.name);
+  const awayNames = awayPlayers.filter(p => p.pos !== "ВРТ").map(p => p.name);
+  const minutes = [];
+  for (let i = 0; i < 10; i++) minutes.push(Math.floor(Math.random() * 85) + 5);
+  minutes.sort((a,b) => a - b);
+  const events = [];
+  for (let i = 0; i < hScore; i++) events.push({ team: "home", minute: minutes.shift() || 45 });
+  for (let i = 0; i < aScore; i++) events.push({ team: "away", minute: minutes.shift() || 45 });
+  events.sort((a,b) => a.minute - b.minute);
+  comments.push({ minute: 0, type: "info", text: `Матч начался! ${homeName} против ${awayName}.` });
+  events.forEach(e => {
+    if (e.team === "home") {
+      const scorerName = homeNames.length ? pickRandom(homeNames) : "Игрок";
+      const templates = [
+        `${scorerName} получает мяч на границе штрафной, убирает защитника на замахе и низом пробивает в дальний угол — ГОООЛ!`,
+        `Быстрая атака! ${scorerName} врывается в штрафную и хладнокровно переигрывает вратаря — мяч в сетке!`,
+        `${scorerName} бьёт с линии штрафной — рикошет от защитника, и мяч залетает в ворота!`,
+        `Подача с фланга, ${scorerName} выигрывает воздух и головой вколачивает мяч! ГОООЛ!`,
+        `Шикарная комбинация! ${scorerName} получает пас вразрез, выходит один на один и забивает!`
+      ];
+      comments.push({ minute: e.minute, type: "goal", text: pickRandom(templates) });
+    } else {
+      const scorerName = awayNames.length ? pickRandom(awayNames) : "Игрок";
+      const templates = [
+        `Быстрая контратака ${awayName} завершается точным ударом ${scorerName} в девятку.`,
+        `${scorerName} получает мяч в штрафной, разворачивается и пробивает точно в угол.`,
+        `Ошибка в обороне! ${scorerName} пользуется этим и вколачивает мяч под перекладину.`,
+        `Пушечный удар ${scorerName} с дальней дистанции — мяч вонзается точно в девятку!`
+      ];
+      comments.push({ minute: e.minute, type: "goal", text: pickRandom(templates) });
+    }
+  });
+  if (hPens != null && aPens != null) {
+    comments.push({ minute: 90, type: "info", text: `Основное время вничью ${hScore}:${aScore}. Серия пенальти!` });
+    for (let i = 0; i < Math.max(hPens, aPens); i++) {
+      if (i < hPens) comments.push({ minute: 90, type: "goal", text: `${homeName} реализует пенальти ${i+1}.` });
+      if (i < aPens) comments.push({ minute: 90, type: "goal", text: `${awayName} реализует пенальти ${i+1}.` });
+    }
+    const winner = hPens > aPens ? homeName : awayName;
+    comments.push({ minute: 90, type: "info", text: `${winner} побеждает по пенальти ${Math.max(hPens, aPens)}:${Math.min(hPens, aPens)}!` });
+  } else {
+    const winner = hScore > aScore ? homeName : (aScore > hScore ? awayName : null);
+    if (winner) comments.push({ minute: 90, type: "info", text: `Финальный свисток! ${winner} побеждает ${Math.max(hScore, aScore)}:${Math.min(hScore, aScore)}.` });
+    else comments.push({ minute: 90, type: "info", text: `Финальный свисток! Ничья ${hScore}:${aScore}.` });
+  }
+  return comments;
+}
+
+async function init() {
+  if (localStorage.getItem("sml_dev") === "1") {
+    state.isDev = true;
+    showScreen("screen-devmenu");
+    return;
+  }
+  const { data } = await sb.auth.getSession();
+  if (data.session) {
+    state.user = data.session.user;
+    const ok = await loadProfile();
+    if (ok && state.profile.team_id) {
+      await loadTeam(state.profile.team_id);
+      renderCareerMenu();
+      showScreen("screen-career");
+      return;
+    }
+    if (ok && !state.profile.team_id) {
+      await renderTeamSelectGrid();
+      showScreen("screen-team-select");
+      return;
+    }
+  }
+  showScreen("screen-main");
+}
+init();
+</script>
+</body>
+  </html>
